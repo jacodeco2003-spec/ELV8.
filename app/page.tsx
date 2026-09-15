@@ -365,7 +365,7 @@ export default function Home() {
             <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(0,0,0,0.4)_0%,rgba(9,9,11,0.85)_75%,rgba(9,9,11,0.98)_100%)]" />
           </div>
 
-          <div className={`relative z-40 max-w-3xl text-center space-y-6 px-4 transition-all duration-500 ease-out ${
+          <div className={`relative z-40 w-full md:w-[768px] max-w-3xl text-center space-y-4 md:space-y-6 px-4 transition-all duration-500 ease-out ${
             isOpening ? 'opacity-0 scale-95 -translate-y-6' : 'opacity-100 scale-100 translate-y-0'
           }`}>
             <div className="inline-flex items-center gap-2.5 px-4 py-1.5 rounded-full border border-zinc-600/60 bg-zinc-900/95 backdrop-blur-md shadow-[0_0_20px_rgba(255,255,255,0.15)]">
@@ -375,16 +375,16 @@ export default function Home() {
               </span>
             </div>
             
-            <h1 className="text-7xl md:text-[12rem] font-light tracking-[0.22em] text-white uppercase leading-none font-mono drop-shadow-[0_0_50px_rgba(255,255,255,0.4)]">
+            <h1 className="text-3xl md:text-[12rem] font-light tracking-[0.22em] text-white uppercase leading-none font-mono drop-shadow-[0_0_50px_rgba(255,255,255,0.4)]">
               ELV8
             </h1>
 
-            <p className="text-zinc-200 text-sm md:text-lg font-light tracking-wide max-w-xl mx-auto leading-relaxed drop-shadow-md">
+            <p className="px-6 md:px-0 text-zinc-200 text-sm md:text-lg font-light tracking-wide max-w-xl mx-auto leading-relaxed drop-shadow-md">
               Excellence is not an act, it is a relentless mindset. Push past your absolute limits and engineer elite physical performance.
             </p>
 
             <div className="pt-6">
-              <span className="inline-block px-6 py-3 rounded-full border border-zinc-500 bg-zinc-900/90 backdrop-blur-md text-[11px] uppercase tracking-[0.35em] text-white font-semibold hover:border-white transition shadow-[0_0_25px_rgba(255,255,255,0.2)]">
+              <span className="inline-block w-full sm:w-auto px-6 py-3 rounded-full border border-zinc-500 bg-zinc-900/90 backdrop-blur-md text-[11px] uppercase tracking-[0.35em] text-white font-semibold hover:border-white transition shadow-[0_0_25px_rgba(255,255,255,0.2)]">
                 Touch the screen to continue ↗
               </span>
             </div>
