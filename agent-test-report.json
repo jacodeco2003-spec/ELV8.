@@ -1,0 +1,502 @@
+[
+  {
+    "id": 1,
+    "sport": "Soccer / Football",
+    "injury": "Sano / Nessuno",
+    "passed": "PASSED",
+    "duration": "6.78s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 2,
+    "sport": "Tennis",
+    "injury": "Infortunio ACL (Ginocchio)",
+    "passed": "PASSED",
+    "duration": "7.80s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "PASS: Incluse modifiche per il ginocchio o adattamenti specifici."
+  },
+  {
+    "id": 3,
+    "sport": "Basketball",
+    "injury": "Conflitto Subacromiale (Spalla)",
+    "passed": "PASSED",
+    "duration": "9.04s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 4,
+    "sport": "Track & Field",
+    "injury": "Problema Lombare (Schiena)",
+    "passed": "PASSED",
+    "duration": "12.32s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 5,
+    "sport": "Volleyball",
+    "injury": "Distorsione Caviglia",
+    "passed": "PASSED",
+    "duration": "5.87s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 6,
+    "sport": "Combat Sports / MMA",
+    "injury": "Sano / Nessuno",
+    "passed": "PASSED",
+    "duration": "8.58s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 7,
+    "sport": "Bodybuilding / Fitness",
+    "injury": "Infortunio ACL (Ginocchio)",
+    "passed": "PASSED",
+    "duration": "10.50s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "PASS: Incluse modifiche per il ginocchio o adattamenti specifici."
+  },
+  {
+    "id": 8,
+    "sport": "Baseball / Softball",
+    "injury": "Conflitto Subacromiale (Spalla)",
+    "passed": "PASSED",
+    "duration": "10.02s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 9,
+    "sport": "Swimming",
+    "injury": "Problema Lombare (Schiena)",
+    "passed": "PASSED",
+    "duration": "6.52s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 10,
+    "sport": "Cycling",
+    "injury": "Distorsione Caviglia",
+    "passed": "PASSED",
+    "duration": "7.06s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 11,
+    "sport": "Rugby",
+    "injury": "Sano / Nessuno",
+    "passed": "PASSED",
+    "duration": "11.06s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 12,
+    "sport": "CrossFit",
+    "injury": "Infortunio ACL (Ginocchio)",
+    "passed": "PASSED",
+    "duration": "16.81s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "PASS: Incluse modifiche per il ginocchio o adattamenti specifici."
+  },
+  {
+    "id": 13,
+    "sport": "Soccer / Football",
+    "injury": "Conflitto Subacromiale (Spalla)",
+    "passed": "PASSED",
+    "duration": "6.44s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 14,
+    "sport": "Tennis",
+    "injury": "Problema Lombare (Schiena)",
+    "passed": "PASSED",
+    "duration": "7.36s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 15,
+    "sport": "Basketball",
+    "injury": "Distorsione Caviglia",
+    "passed": "PASSED",
+    "duration": "8.43s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 16,
+    "sport": "Track & Field",
+    "injury": "Sano / Nessuno",
+    "passed": "PASSED",
+    "duration": "18.62s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 17,
+    "sport": "Volleyball",
+    "injury": "Infortunio ACL (Ginocchio)",
+    "passed": "PASSED",
+    "duration": "6.98s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "PASS: Incluse modifiche per il ginocchio o adattamenti specifici."
+  },
+  {
+    "id": 18,
+    "sport": "Combat Sports / MMA",
+    "injury": "Conflitto Subacromiale (Spalla)",
+    "passed": "PASSED",
+    "duration": "8.04s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 19,
+    "sport": "Bodybuilding / Fitness",
+    "injury": "Problema Lombare (Schiena)",
+    "passed": "PASSED",
+    "duration": "8.87s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 20,
+    "sport": "Baseball / Softball",
+    "injury": "Distorsione Caviglia",
+    "passed": "PASSED",
+    "duration": "9.97s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 21,
+    "sport": "Swimming",
+    "injury": "Sano / Nessuno",
+    "passed": "PASSED",
+    "duration": "7.80s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 22,
+    "sport": "Cycling",
+    "injury": "Infortunio ACL (Ginocchio)",
+    "passed": "PASSED",
+    "duration": "7.09s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "PASS: Incluse modifiche per il ginocchio o adattamenti specifici."
+  },
+  {
+    "id": 23,
+    "sport": "Rugby",
+    "injury": "Conflitto Subacromiale (Spalla)",
+    "passed": "PASSED",
+    "duration": "8.88s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 24,
+    "sport": "CrossFit",
+    "injury": "Problema Lombare (Schiena)",
+    "passed": "PASSED",
+    "duration": "11.59s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 25,
+    "sport": "Soccer / Football",
+    "injury": "Distorsione Caviglia",
+    "passed": "PASSED",
+    "duration": "6.10s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 26,
+    "sport": "Tennis",
+    "injury": "Sano / Nessuno",
+    "passed": "PASSED",
+    "duration": "7.01s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 27,
+    "sport": "Basketball",
+    "injury": "Infortunio ACL (Ginocchio)",
+    "passed": "PASSED",
+    "duration": "8.26s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "PASS: Incluse modifiche per il ginocchio o adattamenti specifici."
+  },
+  {
+    "id": 28,
+    "sport": "Track & Field",
+    "injury": "Conflitto Subacromiale (Spalla)",
+    "passed": "PASSED",
+    "duration": "10.94s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 29,
+    "sport": "Volleyball",
+    "injury": "Problema Lombare (Schiena)",
+    "passed": "PASSED",
+    "duration": "7.42s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 30,
+    "sport": "Combat Sports / MMA",
+    "injury": "Distorsione Caviglia",
+    "passed": "PASSED",
+    "duration": "8.26s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 31,
+    "sport": "Bodybuilding / Fitness",
+    "injury": "Sano / Nessuno",
+    "passed": "PASSED",
+    "duration": "8.45s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 32,
+    "sport": "Baseball / Softball",
+    "injury": "Infortunio ACL (Ginocchio)",
+    "passed": "PASSED",
+    "duration": "10.32s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "PASS: Incluse modifiche per il ginocchio o adattamenti specifici."
+  },
+  {
+    "id": 33,
+    "sport": "Swimming",
+    "injury": "Conflitto Subacromiale (Spalla)",
+    "passed": "PASSED",
+    "duration": "6.25s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 34,
+    "sport": "Cycling",
+    "injury": "Problema Lombare (Schiena)",
+    "passed": "PASSED",
+    "duration": "8.57s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 35,
+    "sport": "Rugby",
+    "injury": "Distorsione Caviglia",
+    "passed": "PASSED",
+    "duration": "10.08s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 36,
+    "sport": "CrossFit",
+    "injury": "Sano / Nessuno",
+    "passed": "PASSED",
+    "duration": "9.28s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 37,
+    "sport": "Soccer / Football",
+    "injury": "Infortunio ACL (Ginocchio)",
+    "passed": "PASSED",
+    "duration": "6.74s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "PASS: Incluse modifiche per il ginocchio o adattamenti specifici."
+  },
+  {
+    "id": 38,
+    "sport": "Tennis",
+    "injury": "Conflitto Subacromiale (Spalla)",
+    "passed": "PASSED",
+    "duration": "8.71s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 39,
+    "sport": "Basketball",
+    "injury": "Problema Lombare (Schiena)",
+    "passed": "PASSED",
+    "duration": "9.31s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 40,
+    "sport": "Track & Field",
+    "injury": "Distorsione Caviglia",
+    "passed": "PASSED",
+    "duration": "10.68s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 41,
+    "sport": "Volleyball",
+    "injury": "Sano / Nessuno",
+    "passed": "PASSED",
+    "duration": "6.75s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 42,
+    "sport": "Combat Sports / MMA",
+    "injury": "Infortunio ACL (Ginocchio)",
+    "passed": "PASSED",
+    "duration": "8.00s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "PASS: Incluse modifiche per il ginocchio o adattamenti specifici."
+  },
+  {
+    "id": 43,
+    "sport": "Bodybuilding / Fitness",
+    "injury": "Conflitto Subacromiale (Spalla)",
+    "passed": "PASSED",
+    "duration": "10.59s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 44,
+    "sport": "Baseball / Softball",
+    "injury": "Problema Lombare (Schiena)",
+    "passed": "PASSED",
+    "duration": "15.21s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 45,
+    "sport": "Swimming",
+    "injury": "Distorsione Caviglia",
+    "passed": "PASSED",
+    "duration": "6.01s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 46,
+    "sport": "Cycling",
+    "injury": "Sano / Nessuno",
+    "passed": "PASSED",
+    "duration": "7.03s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 47,
+    "sport": "Rugby",
+    "injury": "Infortunio ACL (Ginocchio)",
+    "passed": "PASSED",
+    "duration": "8.89s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "PASS: Incluse modifiche per il ginocchio o adattamenti specifici."
+  },
+  {
+    "id": 48,
+    "sport": "CrossFit",
+    "injury": "Conflitto Subacromiale (Spalla)",
+    "passed": "PASSED",
+    "duration": "11.69s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 49,
+    "sport": "Soccer / Football",
+    "injury": "Problema Lombare (Schiena)",
+    "passed": "PASSED",
+    "duration": "4.84s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  },
+  {
+    "id": 50,
+    "sport": "Tennis",
+    "injury": "Distorsione Caviglia",
+    "passed": "PASSED",
+    "duration": "7.84s",
+    "hasTables": "Sì",
+    "hasLinks": "Sì",
+    "aclStatus": "N/A"
+  }
+]
