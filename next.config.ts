@@ -6,5 +6,5 @@ const withPWA = withPWAInit({
 });
 
 export default withPWA({
-  // Eventuali altre configurazioni Next.js
+  turbopack: {},
 });
