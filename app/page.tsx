@@ -254,11 +254,10 @@ export default function Home() {
     }
   };
 
-  // ULTRA-ROBUST TABLE PARSER TO CLEAN UP ANY SQUASHED OR UNALIGNED MARKDOWN TABLES
+  // ULTRA-ROBUST TABLE PARSER
   const renderFormattedWorkout = (text: string) => {
     if (!text) return null;
 
-    // Normalizziamo le righe sostituendo eventuali separatori doppi o uniti
     const normalizedText = text.replace(/\|\|/g, '\n|').replace(/---\s*\|/g, '---|\n|');
     const lines = normalizedText.split('\n');
     
@@ -275,8 +274,6 @@ export default function Home() {
       }
 
       const headers = validRows[0].split('|').map((h) => h.trim()).filter(Boolean);
-      
-      // Filtriamo via le righe divisorie Markdown (es. |---|---|) e prendiamo i dati reali
       const dataRows = validRows
         .slice(1)
         .filter(row => !row.includes('---'))
@@ -1062,7 +1059,7 @@ export default function Home() {
                               type="text"
                               value={chatModifications}
                               onChange={(e) => setChatModifications(e.target.value)}
-                              placeholder="e.g., I prefer more chest exercises on Day 1, or adjust intensity..."
+                              placeholder="e.g., Adjust intensity or modify specific exercises..."
                               className="flex-1 bg-zinc-950 border border-zinc-700 rounded-xl p-3 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-white"
                             />
                             <button
@@ -1070,9 +1067,16 @@ export default function Home() {
                               disabled={loading || !chatModifications.trim()}
                               onClick={async () => {
                                 setLoading(true);
+                                // PROMPT DI MODIFICA RIGOROSO CHE MANTIENE IL CONTESTO DELLO SPORT E DELLO STILE
                                 const modificationPrompt = `
-                                  Refine the previous training plan based on this user feedback/suggestion: "${chatModifications}".
-                                  Keep the same elite formatting, Markdown tables, and structure, but adapt the content according to the requested preference. NO EMOJIS.
+                                  Act as Coach ${activeSport.coachName}. 
+                                  You are refining the previous training plan for the sport "${selectedSportKey}" with goal "${formData.goal}".
+                                  The user requested this specific adjustment/feedback: "${chatModifications}".
+                                  CRITICAL RULES:
+                                  1. Maintain strictly the focus on "${selectedSportKey}". Do not convert this into a generic bodybuilding gym routine or unrelated workout.
+                                  2. Keep the exact same elite formatting, Markdown tables, and structure.
+                                  3. Absolutely NO emojis.
+                                  Refine the plan accordingly.
                                 `;
                                 try {
                                   const response = await fetch(`${window.location.origin}/api/generate`, {
