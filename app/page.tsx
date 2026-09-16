@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import PlanPreview from '@/app/components/PlanPreview';
 
 interface SportData {
   tag: string;
@@ -138,10 +139,33 @@ export default function Home() {
   });
 
   const [loading, setLoading] = useState(false);
-  const [workout, setWorkout] = useState<string | null>(null);
+  const [workout, setWorkout] = useState<string | null>(() => {
+    if (typeof window !== 'undefined') {
+      return localStorage.getItem('elv8_workout') || null;
+    }
+    return null;
+  });
   const [focusMode, setFocusMode] = useState<boolean>(false);
   const [auditSubmitted, setAuditSubmitted] = useState<boolean>(false);
   const [auditData, setAuditData] = useState({ rpe: '8 - Hard', notes: '' });
+
+  // Stati per la conferma definitiva e la chat di modifica
+  const [isConfirmedPlan, setIsConfirmedPlan] = useState<boolean>(() => {
+    if (typeof window !== 'undefined') {
+      return !!localStorage.getItem('elv8_confirmed_plan');
+    }
+    return false;
+  });
+  const [isModifyingChatOpen, setIsModifyingChatOpen] = useState<boolean>(false);
+  const [chatModifications, setChatModifications] = useState<string>('');
+
+  useEffect(() => {
+    if (workout) {
+      localStorage.setItem('elv8_workout', workout);
+    } else {
+      localStorage.removeItem('elv8_workout');
+    }
+  }, [workout]);
 
   const activeSport = selectedSportKey ? SPORTS_DATA[selectedSportKey] : DEFAULT_SPORT;
 
@@ -192,6 +216,7 @@ export default function Home() {
     setLoading(true);
     setWorkout(null);
     setAuditSubmitted(false);
+    setIsConfirmedPlan(false);
 
     let goalSummary = formData.goal;
     if (activeSport.isRunningSpecial) {
@@ -252,17 +277,34 @@ export default function Home() {
   };
 
   const renderFormattedWorkout = (text: string) => {
-    const lines = text.split('\n');
+    if (!text) return null;
+
+    const cleanText = text
+      .replace(/\\n/g, '\n')
+      .replace(/\|/g, ' | ')
+      .replace(/\s+\|/g, ' |')
+      .replace(/\|\s+/g, '| ');
+
+    const lines = cleanText.split('\n');
     const elements: React.ReactNode[] = [];
     let tableRows: string[] = [];
 
     const flushTable = (key: number) => {
       if (tableRows.length === 0) return null;
-      const headers = tableRows[0].split('|').map((h) => h.trim()).filter(Boolean);
-      const dataRows = tableRows.slice(2).map((row) => row.split('|').map((c) => c.trim()).filter(Boolean));
+      
+      const validRows = tableRows.filter(r => r.includes('|'));
+      if (validRows.length === 0) {
+        tableRows = [];
+        return null;
+      }
+
+      const headers = validRows[0].split('|').map((h) => h.trim()).filter(Boolean);
+      const dataRows = validRows.slice(2).map((row) => 
+        row.split('|').map((c) => c.trim()).filter(Boolean)
+      );
 
       const tableElement = (
-        <div key={`table-${key}`} className="overflow-x-auto my-6 border border-zinc-800 rounded-xl bg-zinc-900/50">
+        <div key={`table-${key}`} className="overflow-x-auto my-6 border border-zinc-800 rounded-xl bg-zinc-900/50 shadow-lg">
           <table className="w-full text-left border-collapse text-xs md:text-sm">
             <thead>
               <tr className="bg-zinc-800/60 text-zinc-300 uppercase tracking-wider text-[11px] font-semibold border-b border-zinc-700/60">
@@ -273,7 +315,7 @@ export default function Home() {
             </thead>
             <tbody className="divide-y divide-zinc-800/50">
               {dataRows.map((row, rIndex) => (
-                <tr key={rIndex} className="hover:bg-zinc-800/30 transition-colors">
+                <tr key={rIndex} className="hover:bg-zinc-800/35 transition-colors">
                   {row.map((cell, cIndex) => {
                     const linkMatch = cell.match(/\[(.*?)\]\((.*?)\)/);
                     if (linkMatch) {
@@ -315,8 +357,8 @@ export default function Home() {
 
       if (!trimmed) return;
 
-      if (trimmed.startsWith('#')) {
-        const titleText = trimmed.replace(/^#+\s*/, '');
+      if (trimmed.startsWith('#') || (trimmed.startsWith('**') && trimmed.endsWith('**') && trimmed.length < 50)) {
+        const titleText = trimmed.replace(/^#+\s*/, '').replace(/\*\*/g, '');
         elements.push(
           <h3 key={index} className="text-lg md:text-xl font-medium tracking-tight text-white mt-8 mb-3 pb-2 border-b border-zinc-800">
             {titleText}
@@ -418,7 +460,7 @@ export default function Home() {
                 </button>
               )}
               <button 
-                onClick={() => { setSelectedSportKey(null); setWorkout(null); setStep(1); setFocusMode(false); }}
+                onClick={() => { setSelectedSportKey(null); setWorkout(null); setStep(1); setFocusMode(false); setIsConfirmedPlan(false); }}
                 className="px-4 py-2 rounded-full border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 transition font-medium text-xs tracking-wide"
               >
                 {selectedSportKey ? 'Back to Sport Selection' : 'Reset Protocol'}
@@ -427,19 +469,18 @@ export default function Home() {
           </div>
         </header>
 
-        {/* MAIN CONTAINER A SCHERMO INTERO (FULLSCREEN DIAGONAL SPLIT) */}
+        {/* MAIN CONTAINER A SCHERMO INTERO */}
         <main className="pt-16">
           
           {!selectedSportKey ? (
             <div className="relative w-full h-[calc(100vh-4rem)] bg-zinc-950 flex flex-col md:flex-row overflow-hidden">
               
-              {/* SVG LINEA DIAGONALE LUMINOSA CENTRALE (Solo Desktop) */}
               <svg className="hidden md:block absolute inset-0 w-full h-full pointer-events-none z-30" preserveAspectRatio="none">
                 <line x1="55%" y1="0" x2="45%" y2="100%" stroke="white" strokeWidth="4" style={{ filter: 'drop-shadow(0 0 15px rgba(255,255,255,0.9))' }} />
                 <line x1="55%" y1="0" x2="45%" y2="100%" stroke="white" strokeWidth="2" style={{ filter: 'drop-shadow(0 0 5px rgba(255,255,255,1))' }} />
               </svg>
 
-              {/* LEFT SECTION: ENDURANCE (A SCHERMO INTERO) */}
+              {/* LEFT SECTION: ENDURANCE */}
               <div 
                 className="relative md:absolute md:inset-0 w-full h-[50vh] md:h-full p-8 md:p-16 lg:p-20 flex flex-col justify-center group cursor-pointer z-10 md:[clip-path:polygon(0_0,55%_0,45%_100%,0_100%)]"
               >
@@ -481,10 +522,9 @@ export default function Home() {
                 </div>
               </div>
 
-              {/* MOBILE HORIZONTAL DIVIDER LUMINOSO */}
               <div className="md:hidden w-full h-[2px] bg-white relative z-30 shrink-0" style={{ boxShadow: '0 0 15px rgba(255,255,255,0.9)' }} />
 
-              {/* RIGHT SECTION: TEAM SPORTS & GYM (A SCHERMO INTERO) */}
+              {/* RIGHT SECTION: TEAM SPORTS & GYM */}
               <div 
                 className="relative md:absolute md:inset-0 w-full h-[50vh] md:h-full p-8 md:p-16 lg:p-20 flex flex-col justify-center group cursor-pointer z-20 md:[clip-path:polygon(55%_0,100%_0,100%_100%,45%_100%)]"
               >
@@ -972,25 +1012,131 @@ export default function Home() {
             </div>
           ) : (
             
-            /* RISULTATO PROTOCOLLO E AUDIT */
+            /* RISULTATO PROTOCOLLO, CONFERMA, CHAT E AUDIT */
             <div className={`max-w-4xl mx-auto px-6 py-12 transition-all duration-500 ${focusMode ? 'max-w-5xl py-6' : ''}`}>
               <div className="flex justify-between items-center mb-8 pb-6 border-b border-zinc-800">
                 <div>
-                  <span className="text-xs uppercase tracking-widest text-zinc-500 block mb-1">Irrevocable Standard</span>
+                  <span className="text-xs uppercase tracking-widest text-zinc-500 block mb-1">
+                    {isConfirmedPlan ? 'Active Elite Protocol ✓' : 'Irrevocable Standard'}
+                  </span>
                   <h2 className="text-xl font-light text-white">{selectedSportKey} — Elite Protocol</h2>
                 </div>
-                <button
-                  onClick={() => setWorkout(null)}
-                  className="px-4 py-2 rounded-full border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs"
-                >
-                  Edit Profile & Inputs
-                </button>
+                <div className="flex items-center gap-3">
+                  <PlanPreview initialPlan={workout} />
+                  <button
+                    onClick={() => { setWorkout(null); setIsConfirmedPlan(false); }}
+                    className="px-4 py-2 rounded-full border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs"
+                  >
+                    Edit Profile & Inputs
+                  </button>
+                </div>
               </div>
 
               <div className="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-6 md:p-10 shadow-2xl space-y-6">
+                
+                {/* 1. Rendering del Workout Formattato con Tabelle */}
                 {renderFormattedWorkout(workout)}
 
-                {/* AUDIT SECTION */}
+                {/* 2. SEZIONE CONFERMA DEFINITIVA E CHAT DI MODIFICA (ESATTAMENTE QUI) */}
+                <div className="mt-10 pt-8 border-t border-zinc-800 space-y-6">
+                  {!isConfirmedPlan ? (
+                    <div className="bg-zinc-900/90 border border-zinc-700/60 rounded-xl p-6 space-y-6">
+                      <div>
+                        <h4 className="text-sm font-semibold text-white tracking-wide uppercase mb-1">Finalize Your Protocol</h4>
+                        <p className="text-xs text-zinc-400 font-light">
+                          Review your protocol above. Confirm it to save it as your active standard, or request specific adjustments through the coach assistant.
+                        </p>
+                      </div>
+
+                      <div className="flex flex-col sm:flex-row items-center gap-4">
+                        {/* Pulsante Conferma Definitiva */}
+                        <button
+                          onClick={() => {
+                            setIsConfirmedPlan(true);
+                            if (typeof window !== 'undefined') {
+                              localStorage.setItem('elv8_confirmed_plan', workout);
+                            }
+                          }}
+                          className="w-full sm:w-auto px-6 py-3 rounded-full bg-white text-black hover:bg-zinc-200 transition font-semibold text-xs tracking-wider uppercase shadow-[0_0_20px_rgba(255,255,255,0.2)]"
+                        >
+                          Confirm Final & Activate Plan ↗
+                        </button>
+
+                        {/* Pulsante Apri Chat di Modifica */}
+                        <button
+                          onClick={() => setIsModifyingChatOpen(!isModifyingChatOpen)}
+                          className="w-full sm:w-auto px-6 py-3 rounded-full border border-zinc-700 bg-zinc-800/60 hover:bg-zinc-800 text-zinc-200 transition font-medium text-xs tracking-wider uppercase"
+                        >
+                          {isModifyingChatOpen ? 'Close Modify Chat' : 'Modify Your Plan (Chat) 💬'}
+                        </button>
+                      </div>
+
+                      {/* Box Interattivo per la Chat di Modifica */}
+                      {isModifyingChatOpen && (
+                        <div className="mt-4 pt-4 border-t border-zinc-800 space-y-3">
+                          <label className="block text-xs uppercase tracking-wider text-zinc-300 font-medium">
+                            Tell the Coach what you want to change:
+                          </label>
+                          <div className="flex gap-2">
+                            <input
+                              type="text"
+                              value={chatModifications}
+                              onChange={(e) => setChatModifications(e.target.value)}
+                              placeholder="e.g., I prefer more chest exercises on Day 1..."
+                              className="flex-1 bg-zinc-950 border border-zinc-700 rounded-xl p-3 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-white"
+                            />
+                            <button
+                              type="button"
+                              disabled={loading || !chatModifications.trim()}
+                              onClick={async () => {
+                                setLoading(true);
+                                const modificationPrompt = `
+                                  Refine the previous training plan based on this user feedback: "${chatModifications}".
+                                  Keep the same elite formatting, Markdown tables, and structure, but adapt the content according to the requested preference.
+                                `;
+                                try {
+                                  const response = await fetch(`${window.location.origin}/api/generate`, {
+                                    method: 'POST',
+                                    headers: { 'Content-Type': 'application/json' },
+                                    body: JSON.stringify({ prompt: modificationPrompt }),
+                                  });
+                                  const data = await response.json();
+                                  if (data.result) {
+                                    setWorkout(data.result);
+                                    setChatModifications('');
+                                    setIsModifyingChatOpen(false);
+                                  }
+                                } catch (err) {
+                                  console.error(err);
+                                } finally {
+                                  setLoading(false);
+                                }
+                              }}
+                              className="px-5 py-3 rounded-xl bg-zinc-200 text-black hover:bg-white text-xs font-semibold uppercase tracking-wider transition disabled:opacity-50"
+                            >
+                              {loading ? 'Updating...' : 'Apply Changes'}
+                            </button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ) : (
+                    <div className="p-4 rounded-xl bg-zinc-800/40 border border-zinc-700/60 flex items-center justify-between">
+                      <div className="space-y-1 text-xs">
+                        <p className="font-semibold text-white">Status: Active Protocol Locked & Saved ✓</p>
+                        <p className="text-zinc-400">Your routine is officially active in local storage system memory.</p>
+                      </div>
+                      <button
+                        onClick={() => setIsConfirmedPlan(false)}
+                        className="px-3 py-1.5 rounded-lg border border-zinc-700 hover:bg-zinc-800 text-zinc-300 text-[11px] transition"
+                      >
+                        Unlock / Edit Plan
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* 3. AUDIT SECTION */}
                 <div className="mt-12 pt-8 border-t border-zinc-800">
                   <div className="bg-zinc-900/90 border border-zinc-800 rounded-xl p-6 space-y-4">
                     <h4 className="text-sm font-medium text-white tracking-wide uppercase">Weekly Session Audit & RPE Log</h4>
