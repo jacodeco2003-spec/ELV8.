@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState } from 'react';
 import PlanPreview from '@/app/components/PlanPreview';
 
 interface SportData {
@@ -139,33 +139,12 @@ export default function Home() {
   });
 
   const [loading, setLoading] = useState(false);
-  const [workout, setWorkout] = useState<string | null>(() => {
-    if (typeof window !== 'undefined') {
-      return localStorage.getItem('elv8_workout') || null;
-    }
-    return null;
-  });
+  const [workout, setWorkout] = useState<string | null>(null);
   const [focusMode, setFocusMode] = useState<boolean>(false);
-  const [auditSubmitted, setAuditSubmitted] = useState<boolean>(false);
-  const [auditData, setAuditData] = useState({ rpe: '8 - Hard', notes: '' });
 
-  // Stati per la conferma definitiva e la chat di modifica
-  const [isConfirmedPlan, setIsConfirmedPlan] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      return !!localStorage.getItem('elv8_confirmed_plan');
-    }
-    return false;
-  });
+  const [isConfirmedPlan, setIsConfirmedPlan] = useState<boolean>(false);
   const [isModifyingChatOpen, setIsModifyingChatOpen] = useState<boolean>(false);
   const [chatModifications, setChatModifications] = useState<string>('');
-
-  useEffect(() => {
-    if (workout) {
-      localStorage.setItem('elv8_workout', workout);
-    } else {
-      localStorage.removeItem('elv8_workout');
-    }
-  }, [workout]);
 
   const activeSport = selectedSportKey ? SPORTS_DATA[selectedSportKey] : DEFAULT_SPORT;
 
@@ -215,7 +194,6 @@ export default function Home() {
     if (!selectedSportKey) return;
     setLoading(true);
     setWorkout(null);
-    setAuditSubmitted(false);
     setIsConfirmedPlan(false);
 
     let goalSummary = formData.goal;
@@ -247,10 +225,10 @@ export default function Home() {
 
     Formatting & Content Guidelines:
     1. Start with an uncompromising "Coach's Mindset & Tactical Briefing" paragraph written directly by Coach ${activeSport.coachName}, focusing on psychological grit, discomfort management, and discipline.
-    2. Structure each training day with clean Markdown Tables:
+    2. Structure each training day with clean Markdown Tables using standard pipes (|) ensuring each row is on its own separate line:
        | Exercise / Workout Block | Sets x Reps / Distance / Duration | Rest / Pace / Power Zone | Key Coaching Cue | Video Tutorial |
-    3. Include YouTube video search links in the Video Tutorial column, formatted as: [Watch Guide](https://www.youtube.com/results?search_query=Exercise+Name+exercise+tutorial)
-    4. Keep tone authoritative, professional, elite, and ultra-clean. Avoid artificial hype or excessive emojis.
+    3. Include YouTube video search links in the Video Tutorial column, formatted strictly as: [Watch Guide](https://www.youtube.com/results?search_query=Exercise+Name+exercise+tutorial)
+    4. Keep tone authoritative, professional, elite, and ultra-clean. Absolutely NO emojis anywhere in the response.
     `;
 
     try {
@@ -276,22 +254,20 @@ export default function Home() {
     }
   };
 
+  // ULTRA-ROBUST TABLE PARSER TO CLEAN UP ANY SQUASHED OR UNALIGNED MARKDOWN TABLES
   const renderFormattedWorkout = (text: string) => {
     if (!text) return null;
 
-    const cleanText = text
-      .replace(/\\n/g, '\n')
-      .replace(/\|/g, ' | ')
-      .replace(/\s+\|/g, ' |')
-      .replace(/\|\s+/g, '| ');
-
-    const lines = cleanText.split('\n');
+    // Normalizziamo le righe sostituendo eventuali separatori doppi o uniti
+    const normalizedText = text.replace(/\|\|/g, '\n|').replace(/---\s*\|/g, '---|\n|');
+    const lines = normalizedText.split('\n');
+    
     const elements: React.ReactNode[] = [];
     let tableRows: string[] = [];
 
     const flushTable = (key: number) => {
       if (tableRows.length === 0) return null;
-      
+
       const validRows = tableRows.filter(r => r.includes('|'));
       if (validRows.length === 0) {
         tableRows = [];
@@ -299,23 +275,31 @@ export default function Home() {
       }
 
       const headers = validRows[0].split('|').map((h) => h.trim()).filter(Boolean);
-      const dataRows = validRows.slice(2).map((row) => 
-        row.split('|').map((c) => c.trim()).filter(Boolean)
-      );
+      
+      // Filtriamo via le righe divisorie Markdown (es. |---|---|) e prendiamo i dati reali
+      const dataRows = validRows
+        .slice(1)
+        .filter(row => !row.includes('---'))
+        .map((row) => row.split('|').map((c) => c.trim()).filter(Boolean));
+
+      if (headers.length === 0 || dataRows.length === 0) {
+        tableRows = [];
+        return null;
+      }
 
       const tableElement = (
-        <div key={`table-${key}`} className="overflow-x-auto my-6 border border-zinc-800 rounded-xl bg-zinc-900/50 shadow-lg">
+        <div key={`table-${key}`} className="overflow-x-auto my-6 border border-zinc-800 rounded-xl bg-zinc-950 shadow-xl">
           <table className="w-full text-left border-collapse text-xs md:text-sm">
             <thead>
-              <tr className="bg-zinc-800/60 text-zinc-300 uppercase tracking-wider text-[11px] font-semibold border-b border-zinc-700/60">
+              <tr className="bg-zinc-900 text-zinc-300 uppercase tracking-wider text-[11px] font-semibold border-b border-zinc-800">
                 {headers.map((h, i) => (
                   <th key={i} className="py-3 px-4">{h}</th>
                 ))}
               </tr>
             </thead>
-            <tbody className="divide-y divide-zinc-800/50">
+            <tbody className="divide-y divide-zinc-900">
               {dataRows.map((row, rIndex) => (
-                <tr key={rIndex} className="hover:bg-zinc-800/35 transition-colors">
+                <tr key={rIndex} className="hover:bg-zinc-900/50 transition-colors">
                   {row.map((cell, cIndex) => {
                     const linkMatch = cell.match(/\[(.*?)\]\((.*?)\)/);
                     if (linkMatch) {
@@ -434,7 +418,7 @@ export default function Home() {
         </div>
       )}
 
-      {/* CONTENUTO PRINCIPALE */}
+      {/* MAIN CONTENT */}
       <div className={`transition-opacity duration-1000 delay-300 ${hasEntered ? 'opacity-100' : 'opacity-0'}`}>
         
         {/* NAVBAR */}
@@ -456,7 +440,7 @@ export default function Home() {
                     focusMode ? 'bg-white text-black border-white' : 'border-zinc-800 bg-zinc-900 text-zinc-300 hover:bg-zinc-800'
                   }`}
                 >
-                  {focusMode ? 'Exit Focus Mode' : 'Focus Mode ⚡'}
+                  {focusMode ? 'Exit Focus Mode' : 'Focus Mode'}
                 </button>
               )}
               <button 
@@ -469,7 +453,7 @@ export default function Home() {
           </div>
         </header>
 
-        {/* MAIN CONTAINER A SCHERMO INTERO */}
+        {/* MAIN CONTAINER */}
         <main className="pt-16">
           
           {!selectedSportKey ? (
@@ -507,10 +491,7 @@ export default function Home() {
                           e.stopPropagation();
                           setSelectedSportKey(sport);
                           setStep(1);
-                          if (sport === 'Cycling') setFormData(prev => ({ ...prev, equipment: ['Road Bike + Full Gym'] }));
-                          else if (sport === 'Swimming') setFormData(prev => ({ ...prev, equipment: ['Swimming Pool (50m/25m)', 'Full Gym'] }));
-                          else if (sport === 'Triathlon') setFormData(prev => ({ ...prev, equipment: ['Full-Gym', 'Road Bike'] }));
-                          else setFormData(prev => ({ ...prev, equipment: ['Road & Strength Integration'] }));
+                          setWorkout(null);
                         }}
                         className="text-left py-2.5 px-4 rounded-xl border border-zinc-700/80 bg-zinc-900/90 hover:bg-white hover:text-black hover:border-white transition-all duration-300 flex items-center justify-between group/btn shadow-xl backdrop-blur-sm"
                       >
@@ -551,7 +532,7 @@ export default function Home() {
                           e.stopPropagation();
                           setSelectedSportKey(sport);
                           setStep(1);
-                          setFormData(prev => ({ ...prev, equipment: ['Full Commercial Gym'] }));
+                          setWorkout(null);
                         }}
                         className="text-left py-2.5 px-4 rounded-xl border border-zinc-700/80 bg-zinc-900/90 hover:bg-white hover:text-black hover:border-white transition-all duration-300 flex items-center justify-between group/btn shadow-xl backdrop-blur-sm"
                       >
@@ -566,7 +547,7 @@ export default function Home() {
             </div>
           ) : !workout ? (
             
-            /* FORM DI CONFIGURAZIONE PROTOCOLLO */
+            /* CONFIGURATION FORM */
             <div className="relative min-h-[calc(100vh-4rem)] flex items-center justify-center p-6 md:p-12 overflow-hidden">
               
               <div className="absolute inset-0 z-0">
@@ -598,12 +579,11 @@ export default function Home() {
                   </p>
 
                   <div className="flex items-center gap-3">
-                    <div className="text-amber-400 text-xs tracking-widest">★★★★★</div>
                     <span className="text-zinc-400 text-xs font-light tracking-wide">{activeSport.ratingText}</span>
                   </div>
                 </div>
 
-                {/* CARD FORM */}
+                {/* FORM CARD */}
                 <div className="bg-zinc-900/90 backdrop-blur-xl border border-zinc-800/80 rounded-2xl p-6 md:p-8 shadow-2xl">
                   
                   <div className="flex items-center justify-between mb-6 pb-4 border-b border-zinc-800/80 text-xs text-zinc-400 uppercase tracking-widest font-medium">
@@ -1012,12 +992,12 @@ export default function Home() {
             </div>
           ) : (
             
-            /* RISULTATO PROTOCOLLO, CONFERMA, CHAT E AUDIT */
+            /* PROTOCOL RESULT, CONFIRMATION & PERSONALIZED CHAT */
             <div className={`max-w-4xl mx-auto px-6 py-12 transition-all duration-500 ${focusMode ? 'max-w-5xl py-6' : ''}`}>
               <div className="flex justify-between items-center mb-8 pb-6 border-b border-zinc-800">
                 <div>
                   <span className="text-xs uppercase tracking-widest text-zinc-500 block mb-1">
-                    {isConfirmedPlan ? 'Active Elite Protocol ✓' : 'Irrevocable Standard'}
+                    {isConfirmedPlan ? 'Active Elite Protocol' : 'Irrevocable Standard'}
                   </span>
                   <h2 className="text-xl font-light text-white">{selectedSportKey} — Elite Protocol</h2>
                 </div>
@@ -1034,10 +1014,10 @@ export default function Home() {
 
               <div className="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-6 md:p-10 shadow-2xl space-y-6">
                 
-                {/* 1. Rendering del Workout Formattato con Tabelle */}
+                {/* 1. Formatted Workout Rendering (Clean Tables) */}
                 {renderFormattedWorkout(workout)}
 
-                {/* 2. SEZIONE CONFERMA DEFINITIVA E CHAT DI MODIFICA (ESATTAMENTE QUI) */}
+                {/* 2. CONFIRMATION & PERSONALIZED CHAT SECTION */}
                 <div className="mt-10 pt-8 border-t border-zinc-800 space-y-6">
                   {!isConfirmedPlan ? (
                     <div className="bg-zinc-900/90 border border-zinc-700/60 rounded-xl p-6 space-y-6">
@@ -1049,7 +1029,7 @@ export default function Home() {
                       </div>
 
                       <div className="flex flex-col sm:flex-row items-center gap-4">
-                        {/* Pulsante Conferma Definitiva */}
+                        {/* Final Confirmation Button */}
                         <button
                           onClick={() => {
                             setIsConfirmedPlan(true);
@@ -1062,27 +1042,27 @@ export default function Home() {
                           Confirm Final & Activate Plan ↗
                         </button>
 
-                        {/* Pulsante Apri Chat di Modifica */}
+                        {/* Personalize Chat Toggle Button */}
                         <button
                           onClick={() => setIsModifyingChatOpen(!isModifyingChatOpen)}
                           className="w-full sm:w-auto px-6 py-3 rounded-full border border-zinc-700 bg-zinc-800/60 hover:bg-zinc-800 text-zinc-200 transition font-medium text-xs tracking-wider uppercase"
                         >
-                          {isModifyingChatOpen ? 'Close Modify Chat' : 'Modify Your Plan (Chat) 💬'}
+                          {isModifyingChatOpen ? 'Close Personalize Chat' : 'Personalize your plan even more'}
                         </button>
                       </div>
 
-                      {/* Box Interattivo per la Chat di Modifica */}
+                      {/* Interactive Personalize Chat Box */}
                       {isModifyingChatOpen && (
                         <div className="mt-4 pt-4 border-t border-zinc-800 space-y-3">
                           <label className="block text-xs uppercase tracking-wider text-zinc-300 font-medium">
-                            Tell the Coach what you want to change:
+                            Share your thoughts, suggestions, or further modification requests with the Coach:
                           </label>
                           <div className="flex gap-2">
                             <input
                               type="text"
                               value={chatModifications}
                               onChange={(e) => setChatModifications(e.target.value)}
-                              placeholder="e.g., I prefer more chest exercises on Day 1..."
+                              placeholder="e.g., I prefer more chest exercises on Day 1, or adjust intensity..."
                               className="flex-1 bg-zinc-950 border border-zinc-700 rounded-xl p-3 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-white"
                             />
                             <button
@@ -1091,8 +1071,8 @@ export default function Home() {
                               onClick={async () => {
                                 setLoading(true);
                                 const modificationPrompt = `
-                                  Refine the previous training plan based on this user feedback: "${chatModifications}".
-                                  Keep the same elite formatting, Markdown tables, and structure, but adapt the content according to the requested preference.
+                                  Refine the previous training plan based on this user feedback/suggestion: "${chatModifications}".
+                                  Keep the same elite formatting, Markdown tables, and structure, but adapt the content according to the requested preference. NO EMOJIS.
                                 `;
                                 try {
                                   const response = await fetch(`${window.location.origin}/api/generate`, {
@@ -1123,8 +1103,8 @@ export default function Home() {
                   ) : (
                     <div className="p-4 rounded-xl bg-zinc-800/40 border border-zinc-700/60 flex items-center justify-between">
                       <div className="space-y-1 text-xs">
-                        <p className="font-semibold text-white">Status: Active Protocol Locked & Saved ✓</p>
-                        <p className="text-zinc-400">Your routine is officially active in local storage system memory.</p>
+                        <p className="font-semibold text-white">Status: Active Protocol Locked & Saved</p>
+                        <p className="text-zinc-400">Your routine is officially active in system memory.</p>
                       </div>
                       <button
                         onClick={() => setIsConfirmedPlan(false)}
@@ -1134,53 +1114,6 @@ export default function Home() {
                       </button>
                     </div>
                   )}
-                </div>
-
-                {/* 3. AUDIT SECTION */}
-                <div className="mt-12 pt-8 border-t border-zinc-800">
-                  <div className="bg-zinc-900/90 border border-zinc-800 rounded-xl p-6 space-y-4">
-                    <h4 className="text-sm font-medium text-white tracking-wide uppercase">Weekly Session Audit & RPE Log</h4>
-                    {!auditSubmitted ? (
-                      <div className="space-y-4">
-                        <div>
-                          <label className="block text-xs uppercase tracking-wider text-zinc-400 mb-2 font-medium">Session Rate of Perceived Exertion (RPE)</label>
-                          <select 
-                            value={auditData.rpe}
-                            onChange={(e) => setAuditData({ ...auditData, rpe: e.target.value })}
-                            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-xs text-zinc-200 focus:outline-none"
-                          >
-                            <option value="6 - Moderate">6 - Moderate (Comfortable pace)</option>
-                            <option value="7 - Challenging">7 - Challenging (Controlled discomfort)</option>
-                            <option value="8 - Hard">8 - Hard (High intensity push)</option>
-                            <option value="9 - Maximal">9 - Maximal (Severe grit required)</option>
-                            <option value="10 - Absolute Limit">10 - Absolute Limit (Empty the tank)</option>
-                          </select>
-                        </div>
-                        <div>
-                          <label className="block text-xs uppercase tracking-wider text-zinc-400 mb-2 font-medium">Performance Notes / Fatigue Observations</label>
-                          <input 
-                            type="text"
-                            value={auditData.notes}
-                            onChange={(e) => setAuditData({ ...auditData, notes: e.target.value })}
-                            placeholder="e.g. Felt great on intervals, slight tightness in right hamstring"
-                            className="w-full bg-zinc-800 border border-zinc-700 rounded-lg p-2.5 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none"
-                          />
-                        </div>
-                        <button
-                          onClick={() => setAuditSubmitted(true)}
-                          className="px-5 py-2.5 rounded-full bg-zinc-100 text-black hover:bg-white text-xs font-semibold uppercase tracking-wider transition"
-                        >
-                          Submit Weekly Audit
-                        </button>
-                      </div>
-                    ) : (
-                      <div className="p-4 rounded-lg bg-zinc-800/40 border border-zinc-700/50 text-xs text-zinc-300 space-y-1">
-                        <p className="font-semibold text-white">Audit Logged Successfully ✓</p>
-                        <p>RPE Registered: <span className="text-zinc-100">{auditData.rpe}</span></p>
-                        <p className="text-zinc-400">System parameters updated based on your audit metrics.</p>
-                      </div>
-                    )}
-                  </div>
                 </div>
 
               </div>
