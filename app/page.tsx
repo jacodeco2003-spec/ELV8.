@@ -211,24 +211,24 @@ export default function Home() {
 
     const fullPrompt = `
     Act as a world-class elite athletic coach (${activeSport.coachName}).
-    Design an uncompromising, highly detailed, elite-tier professional training program for an athlete in ${selectedSportKey}.
+    Design an uncompromising, highly specific, elite-tier professional training program for an athlete in ${selectedSportKey}.
 
-    Athlete Profile:
+    STRICT ATHLETE SURVEY PARAMETERS:
     - Primary Sport: ${selectedSportKey}
-    - Athlete Experience Level: ${formData.level}
+    - Experience Level: ${formData.level}
     - Biometrics: Weight: ${formData.weight}, Height: ${formData.height}
-    - Primary Goal / Focus: ${goalSummary}
-    - Training Frequency: ${formData.daysPerWeek}
-    - Equipment / Setting Access: ${formData.equipment.join(', ')}
-    - Injury Notes / Limitations: ${formData.injuries || 'None'}
-    - Additional Requests / Specifications: ${formData.additionalRequests || 'None'}
+    - Specific Goal / Focus: ${goalSummary}
+    - Training Frequency: ${formData.daysPerWeek} (You MUST structure the plan to have exactly this number of training days)
+    - Available Equipment / Setting: ${formData.equipment.join(', ')}
+    - Injury Constraints / Limitations: ${formData.injuries || 'None'}
+    - Additional Requests: ${formData.additionalRequests || 'None'}
 
-    Formatting & Content Guidelines:
-    1. Start with an uncompromising "Coach's Mindset & Tactical Briefing" paragraph written directly by Coach ${activeSport.coachName}, focusing on psychological grit, discomfort management, and discipline.
-    2. Structure each training day with clean Markdown Tables using standard pipes (|) ensuring each row is on its own separate line:
+    Formatting Guidelines:
+    1. Start with an uncompromising "Coach's Mindset & Tactical Briefing" paragraph.
+    2. Structure each training day precisely using clean Markdown Tables with standard pipes (|) ensuring each row is on its own separate line:
        | Exercise / Workout Block | Sets x Reps / Distance / Duration | Rest / Pace / Power Zone | Key Coaching Cue | Video Tutorial |
-    3. Include YouTube video search links in the Video Tutorial column, formatted strictly as: [Watch Guide](https://www.youtube.com/results?search_query=Exercise+Name+exercise+tutorial)
-    4. Keep tone authoritative, professional, elite, and ultra-clean. Absolutely NO emojis anywhere in the response.
+    3. Include YouTube video search links: [Watch Guide](https://www.youtube.com/results?search_query=Exercise+Name+exercise+tutorial)
+    4. Tone: Authoritative, professional, elite. Absolutely NO emojis.
     `;
 
     try {
@@ -1059,7 +1059,7 @@ export default function Home() {
                               type="text"
                               value={chatModifications}
                               onChange={(e) => setChatModifications(e.target.value)}
-                              placeholder="e.g., Adjust intensity or modify specific exercises..."
+                              placeholder="e.g., Add stretching on Day 2 or include field drills..."
                               className="flex-1 bg-zinc-950 border border-zinc-700 rounded-xl p-3 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-white"
                             />
                             <button
@@ -1067,15 +1067,18 @@ export default function Home() {
                               disabled={loading || !chatModifications.trim()}
                               onClick={async () => {
                                 setLoading(true);
-                                // PROMPT DI MODIFICA RIGOROSO CHE MANTIENE IL CONTESTO DELLO SPORT E DELLO STILE
+                                // PROMPT DI MODIFICA STRICTLY RIGOROSO: MANTIENE GIORNI, FORMATO E SPORT ORIGINARIO
                                 const modificationPrompt = `
                                   Act as Coach ${activeSport.coachName}. 
-                                  You are refining the previous training plan for the sport "${selectedSportKey}" with goal "${formData.goal}".
-                                  The user requested this specific adjustment/feedback: "${chatModifications}".
-                                  CRITICAL RULES:
-                                  1. Maintain strictly the focus on "${selectedSportKey}". Do not convert this into a generic bodybuilding gym routine or unrelated workout.
-                                  2. Keep the exact same elite formatting, Markdown tables, and structure.
-                                  3. Absolutely NO emojis.
+                                  You are refining the existing training plan for "${selectedSportKey}".
+                                  
+                                  CRITICAL MODIFICATION RULES (You MUST obey these strictly):
+                                  1. DO NOT change the number of training days. If the current plan has N days, the updated plan MUST keep the exact same N training days.
+                                  2. DO NOT change the overall structure or format. Keep the exact same Markdown tables and layout style.
+                                  3. Apply ONLY the specific adjustment requested by the user: "${chatModifications}". Integrate the requested changes directly into the relevant day(s) without altering the rest of the schedule.
+                                  4. Maintain strictly the focus on "${selectedSportKey}".
+                                  5. Absolutely NO emojis.
+                                  
                                   Refine the plan accordingly.
                                 `;
                                 try {
