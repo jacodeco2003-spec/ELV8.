@@ -143,8 +143,6 @@ export default function Home() {
   const [focusMode, setFocusMode] = useState<boolean>(false);
 
   const [isConfirmedPlan, setIsConfirmedPlan] = useState<boolean>(false);
-  const [isModifyingChatOpen, setIsModifyingChatOpen] = useState<boolean>(false);
-  const [chatModifications, setChatModifications] = useState<string>('');
 
   const activeSport = selectedSportKey ? SPORTS_DATA[selectedSportKey] : DEFAULT_SPORT;
 
@@ -218,17 +216,22 @@ export default function Home() {
     - Experience Level: ${formData.level}
     - Biometrics: Weight: ${formData.weight}, Height: ${formData.height}
     - Specific Goal / Focus: ${goalSummary}
-    - Training Frequency: ${formData.daysPerWeek} (You MUST structure the plan to have exactly this number of training days)
+    - Training Frequency: EXACTLY ${formData.daysPerWeek}. You MUST generate exactly this number of training days. No more, no less.
     - Available Equipment / Setting: ${formData.equipment.join(', ')}
     - Injury Constraints / Limitations: ${formData.injuries || 'None'}
     - Additional Requests: ${formData.additionalRequests || 'None'}
 
-    Formatting Guidelines:
-    1. Start with an uncompromising "Coach's Mindset & Tactical Briefing" paragraph.
-    2. Structure each training day precisely using clean Markdown Tables with standard pipes (|) ensuring each row is on its own separate line:
-       | Exercise / Workout Block | Sets x Reps / Distance / Duration | Rest / Pace / Power Zone | Key Coaching Cue | Video Tutorial |
-    3. Include YouTube video search links: [Watch Guide](https://www.youtube.com/results?search_query=Exercise+Name+exercise+tutorial)
-    4. Tone: Authoritative, professional, elite. Absolutely NO emojis.
+    CRITICAL FORMATTING RULES (UNBREAKABLE):
+    1. Start with a "Coach's Mindset & Tactical Briefing" paragraph.
+    2. YOU MUST USE THIS EXACT MARKDOWN TEMPLATE FOR EVERY DAY:
+    
+    Day [Number]: [Focus Area]
+    | Exercise / Workout Block | Sets x Reps / Distance / Duration | Rest / Pace / Power Zone | Key Coaching Cue | Video Tutorial |
+    |---|---|---|---|---|
+    | [Exercise Name] | [Sets/Reps] | [Rest] | [Cue] | [Watch Guide](https://www.youtube.com/results?search_query=exercise+tutorial) |
+    
+    3. You must use the pipe symbols exactly as shown above.
+    4. Absolutely NO emojis.
     `;
 
     try {
@@ -254,7 +257,6 @@ export default function Home() {
     }
   };
 
-  // ULTRA-ROBUST TABLE PARSER
   const renderFormattedWorkout = (text: string) => {
     if (!text) return null;
 
@@ -301,7 +303,7 @@ export default function Home() {
                     const linkMatch = cell.match(/\[(.*?)\]\((.*?)\)/);
                     if (linkMatch) {
                       return (
-                        <td key={cIndex} className="py-3 px-4 text-zinc-300">
+                        <td key={cIndex} className="py-3 px-4 text-zinc-300 whitespace-nowrap">
                           <a href={linkMatch[2]} target="_blank" rel="noreferrer" className="text-white underline underline-offset-4 font-medium hover:text-zinc-400">
                             {linkMatch[1]} ↗
                           </a>
@@ -966,7 +968,7 @@ export default function Home() {
                         <div className="pt-4 flex justify-between">
                           <button
                             type="button"
-                            onClick={() => setStep(2)}
+                            onClick={() => setStep(1)}
                             className="px-5 py-3 rounded-full border border-zinc-700 text-zinc-300 text-xs uppercase"
                           >
                             Back
@@ -989,7 +991,7 @@ export default function Home() {
             </div>
           ) : (
             
-            /* PROTOCOL RESULT, CONFIRMATION & PERSONALIZED CHAT */
+            /* PROTOCOL RESULT & CONFIRMATION */
             <div className={`max-w-4xl mx-auto px-6 py-12 transition-all duration-500 ${focusMode ? 'max-w-5xl py-6' : ''}`}>
               <div className="flex justify-between items-center mb-8 pb-6 border-b border-zinc-800">
                 <div>
@@ -1011,101 +1013,33 @@ export default function Home() {
 
               <div className="bg-zinc-900/60 border border-zinc-800/80 rounded-2xl p-6 md:p-10 shadow-2xl space-y-6">
                 
-                {/* 1. Formatted Workout Rendering (Clean Tables) */}
+                {/* Formatted Workout Rendering */}
                 {renderFormattedWorkout(workout)}
 
-                {/* 2. CONFIRMATION & PERSONALIZED CHAT SECTION */}
+                {/* CONFIRMATION SECTION */}
                 <div className="mt-10 pt-8 border-t border-zinc-800 space-y-6">
                   {!isConfirmedPlan ? (
                     <div className="bg-zinc-900/90 border border-zinc-700/60 rounded-xl p-6 space-y-6">
                       <div>
                         <h4 className="text-sm font-semibold text-white tracking-wide uppercase mb-1">Finalize Your Protocol</h4>
                         <p className="text-xs text-zinc-400 font-light">
-                          Review your protocol above. Confirm it to save it as your active standard, or request specific adjustments through the coach assistant.
+                          Review your protocol above. Confirm it to save it as your active standard.
                         </p>
                       </div>
 
                       <div className="flex flex-col sm:flex-row items-center gap-4">
-                        {/* Final Confirmation Button */}
                         <button
                           onClick={() => {
                             setIsConfirmedPlan(true);
                             if (typeof window !== 'undefined') {
-                              localStorage.setItem('elv8_confirmed_plan', workout);
+                              localStorage.setItem('elv8_confirmed_plan', workout || '');
                             }
                           }}
                           className="w-full sm:w-auto px-6 py-3 rounded-full bg-white text-black hover:bg-zinc-200 transition font-semibold text-xs tracking-wider uppercase shadow-[0_0_20px_rgba(255,255,255,0.2)]"
                         >
                           Confirm Final & Activate Plan ↗
                         </button>
-
-                        {/* Personalize Chat Toggle Button */}
-                        <button
-                          onClick={() => setIsModifyingChatOpen(!isModifyingChatOpen)}
-                          className="w-full sm:w-auto px-6 py-3 rounded-full border border-zinc-700 bg-zinc-800/60 hover:bg-zinc-800 text-zinc-200 transition font-medium text-xs tracking-wider uppercase"
-                        >
-                          {isModifyingChatOpen ? 'Close Personalize Chat' : 'Personalize your plan even more'}
-                        </button>
                       </div>
-
-                      {/* Interactive Personalize Chat Box */}
-                      {isModifyingChatOpen && (
-                        <div className="mt-4 pt-4 border-t border-zinc-800 space-y-3">
-                          <label className="block text-xs uppercase tracking-wider text-zinc-300 font-medium">
-                            Share your thoughts, suggestions, or further modification requests with the Coach:
-                          </label>
-                          <div className="flex gap-2">
-                            <input
-                              type="text"
-                              value={chatModifications}
-                              onChange={(e) => setChatModifications(e.target.value)}
-                              placeholder="e.g., Add stretching on Day 2 or include field drills..."
-                              className="flex-1 bg-zinc-950 border border-zinc-700 rounded-xl p-3 text-xs text-zinc-200 placeholder-zinc-500 focus:outline-none focus:border-white"
-                            />
-                            <button
-                              type="button"
-                              disabled={loading || !chatModifications.trim()}
-                              onClick={async () => {
-                                setLoading(true);
-                                // PROMPT DI MODIFICA STRICTLY RIGOROSO: MANTIENE GIORNI, FORMATO E SPORT ORIGINARIO
-                                const modificationPrompt = `
-                                  Act as Coach ${activeSport.coachName}. 
-                                  You are refining the existing training plan for "${selectedSportKey}".
-                                  
-                                  CRITICAL MODIFICATION RULES (You MUST obey these strictly):
-                                  1. DO NOT change the number of training days. If the current plan has N days, the updated plan MUST keep the exact same N training days.
-                                  2. DO NOT change the overall structure or format. Keep the exact same Markdown tables and layout style.
-                                  3. Apply ONLY the specific adjustment requested by the user: "${chatModifications}". Integrate the requested changes directly into the relevant day(s) without altering the rest of the schedule.
-                                  4. Maintain strictly the focus on "${selectedSportKey}".
-                                  5. Absolutely NO emojis.
-                                  
-                                  Refine the plan accordingly.
-                                `;
-                                try {
-                                  const response = await fetch(`${window.location.origin}/api/generate`, {
-                                    method: 'POST',
-                                    headers: { 'Content-Type': 'application/json' },
-                                    body: JSON.stringify({ prompt: modificationPrompt }),
-                                  });
-                                  const data = await response.json();
-                                  if (data.result) {
-                                    setWorkout(data.result);
-                                    setChatModifications('');
-                                    setIsModifyingChatOpen(false);
-                                  }
-                                } catch (err) {
-                                  console.error(err);
-                                } finally {
-                                  setLoading(false);
-                                }
-                              }}
-                              className="px-5 py-3 rounded-xl bg-zinc-200 text-black hover:bg-white text-xs font-semibold uppercase tracking-wider transition disabled:opacity-50"
-                            >
-                              {loading ? 'Updating...' : 'Apply Changes'}
-                            </button>
-                          </div>
-                        </div>
-                      )}
                     </div>
                   ) : (
                     <div className="p-4 rounded-xl bg-zinc-800/40 border border-zinc-700/60 flex items-center justify-between">
