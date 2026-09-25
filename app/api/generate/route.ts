@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import OpenAI from 'openai';
+import Anthropic from '@anthropic-ai/sdk';
 import { GENERATE_SYSTEM_PROMPT, REFINE_SYSTEM_PROMPT } from './prompts';
 
 export const maxDuration = 120;
 
-const MODEL = 'gpt-4o-mini';
+const MODEL = 'claude-sonnet-5';
 const MAX_REQUEST_CHARS = 1000;
 
 type RefineBody = {
@@ -36,9 +36,9 @@ export async function POST(req: Request) {
   try {
     const body = (await req.json()) as GenerateBody | RefineBody;
 
-    if (!process.env.OPENAI_API_KEY) {
+    if (!process.env.ANTHROPIC_API_KEY) {
       return NextResponse.json(
-        { error: 'OpenAI API key missing in the environment variables' },
+        { error: 'ANTHROPIC_API_KEY is missing from the environment variables' },
         { status: 500 }
       );
     }
@@ -51,22 +51,24 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Missing prompt' }, { status: 400 });
     }
 
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
 
-    const response = await openai.chat.completions.create({
+    const response = await anthropic.messages.create({
       model: MODEL,
+      max_tokens: 12000,
+      system: isRefine ? REFINE_SYSTEM_PROMPT : GENERATE_SYSTEM_PROMPT,
       messages: [
-        { role: 'system', content: isRefine ? REFINE_SYSTEM_PROMPT : GENERATE_SYSTEM_PROMPT },
         {
           role: 'user',
           content: isRefine ? buildRefinePrompt(body as RefineBody) : (body as GenerateBody).prompt,
         },
       ],
-      temperature: isRefine ? 0.2 : 0.5,
-      max_tokens: 12000,
     });
 
-    const text = response.choices[0]?.message?.content || '';
+    const text = response.content
+      .filter((block) => block.type === 'text')
+      .map((block) => block.text)
+      .join('\n');
 
     if (!isRefine) {
       return NextResponse.json({ result: text || 'No plan generated.' });
