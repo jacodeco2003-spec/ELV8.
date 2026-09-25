@@ -148,6 +148,21 @@ export default function Home() {
 
   const [isConfirmedPlan, setIsConfirmedPlan] = useState<boolean>(false);
 
+  // Refinement: the survey is frozen at generation time, every applied change is kept.
+  const [lockedSurvey, setLockedSurvey] = useState<string>('');
+  const [planHistory, setPlanHistory] = useState<string[]>([]);
+  const [changeLog, setChangeLog] = useState<{ request: string; summary: string }[]>([]);
+  const [refineInput, setRefineInput] = useState<string>('');
+  const [refining, setRefining] = useState<boolean>(false);
+  const [refineError, setRefineError] = useState<string | null>(null);
+
+  const resetRefinement = () => {
+    setPlanHistory([]);
+    setChangeLog([]);
+    setRefineInput('');
+    setRefineError(null);
+  };
+
   const activeSport = selectedSportKey ? SPORTS_DATA[selectedSportKey] : DEFAULT_SPORT;
 
   const handleEnterApp = () => {
@@ -262,6 +277,7 @@ export default function Home() {
     setLoading(true);
     setWorkout(null);
     setIsConfirmedPlan(false);
+    resetRefinement();
 
     let goalSummary = formData.goal;
     if (activeSport.isRunningSpecial) {
@@ -276,31 +292,40 @@ export default function Home() {
       goalSummary = `Gym Strength Goal: ${formData.gymStrengthGoal} | Target Body Zones: ${formData.gymTargetZones.join(', ')}`;
     }
 
+    const surveySummary = [
+      `- Primary Sport: ${selectedSportKey}`,
+      `- Experience Level: ${formData.level}`,
+      `- Biometrics: Weight: ${describeWeight()}, Height: ${describeHeight()}`,
+      `- Specific Goal / Focus: ${goalSummary}`,
+      `- Training Frequency: EXACTLY ${formData.daysPerWeek}`,
+      `- Available Equipment / Setting: ${formData.equipment.join(', ')}`,
+      `- Injury Constraints / Limitations: ${formData.injuries || 'None'}`,
+      `- Additional Requests: ${formData.additionalRequests || 'None'}`,
+    ].join('\n');
+    setLockedSurvey(surveySummary);
+
     const fullPrompt = `
     Act as a world-class elite athletic coach (${activeSport.coachName}).
-    Design an uncompromising, highly specific, elite-tier professional training program for an athlete in ${selectedSportKey}.
+    Design a precise, realistic, professional one-week training program for an athlete in ${selectedSportKey}, based strictly on this survey.
 
     STRICT ATHLETE SURVEY PARAMETERS:
-    - Primary Sport: ${selectedSportKey}
-    - Experience Level: ${formData.level}
-    - Biometrics: Weight: ${describeWeight()}, Height: ${describeHeight()}
-    - Specific Goal / Focus: ${goalSummary}
-    - Training Frequency: EXACTLY ${formData.daysPerWeek}. You MUST generate exactly this number of training days. No more, no less.
-    - Available Equipment / Setting: ${formData.equipment.join(', ')}
-    - Injury Constraints / Limitations: ${formData.injuries || 'None'}
-    - Additional Requests: ${formData.additionalRequests || 'None'}
+${surveySummary}
+
+    You MUST generate exactly ${formData.daysPerWeek} training days. No more, no less. Every other day of the week is a rest day.
 
     CRITICAL FORMATTING RULES (UNBREAKABLE):
-    1. Start with a "Coach's Mindset & Tactical Briefing" paragraph.
-    2. YOU MUST USE THIS EXACT MARKDOWN TEMPLATE FOR EVERY DAY:
-    
-    Day [Number]: [Focus Area]
+    1. Start with a "Coach's Mindset & Tactical Briefing" paragraph that explains, in 3-5 sentences, how this week is built around the survey answers.
+    2. Then a line "Weekly Layout:" listing Monday to Sunday, each with its session focus or "Rest".
+    3. For EVERY training day, use this EXACT markdown template, with the weekday from the Weekly Layout:
+
+    Day [Number] - [Weekday]: [Focus Area]
     | Exercise / Workout Block | Sets x Reps / Distance / Duration | Rest / Pace / Power Zone | Key Coaching Cue | Video Tutorial |
     |---|---|---|---|---|
     | [Exercise Name] | [Sets/Reps] | [Rest] | [Cue] | [Watch Guide](https://www.youtube.com/results?search_query=exercise+tutorial) |
-    
-    3. You must use the pipe symbols exactly as shown above.
-    4. Absolutely NO emojis.
+
+    4. After the last day, add a "Progression & Recovery" section (3-5 sentences) on how to progress over the next weeks and how to recover.
+    5. You must use the pipe symbols exactly as shown above.
+    6. Absolutely NO emojis.
     `;
 
     try {
@@ -324,6 +349,51 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleRefinePlan = async () => {
+    const request = refineInput.trim();
+    if (!request || !workout || refining) return;
+    setRefining(true);
+    setRefineError(null);
+
+    try {
+      const response = await fetch(`${window.location.origin}/api/generate`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          mode: 'refine',
+          survey: lockedSurvey,
+          currentPlan: workout,
+          previousChanges: changeLog.map((c) => c.request),
+          request,
+        }),
+      });
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok || !data.result) {
+        setRefineError(data.error || 'Something went wrong. Please try again.');
+        return;
+      }
+
+      setPlanHistory((prev) => [...prev, workout]);
+      setChangeLog((prev) => [...prev, { request, summary: data.summary || 'Plan updated.' }]);
+      setWorkout(data.result);
+      setRefineInput('');
+    } catch (error) {
+      console.error(error);
+      setRefineError('Connection error. Please try again.');
+    } finally {
+      setRefining(false);
+    }
+  };
+
+  const handleUndoRefine = () => {
+    if (planHistory.length === 0 || refining) return;
+    setWorkout(planHistory[planHistory.length - 1]);
+    setPlanHistory((prev) => prev.slice(0, -1));
+    setChangeLog((prev) => prev.slice(0, -1));
+    setRefineError(null);
   };
 
   const renderFormattedWorkout = (text: string) => {
@@ -409,7 +479,8 @@ export default function Home() {
 
       if (!trimmed) return;
 
-      if (trimmed.startsWith('#') || (trimmed.startsWith('**') && trimmed.endsWith('**') && trimmed.length < 50)) {
+      const isDayHeading = /^(\*\*)?\s*Day\s+\d+/i.test(trimmed) && trimmed.length < 90;
+      if (isDayHeading || trimmed.startsWith('#') || (trimmed.startsWith('**') && trimmed.endsWith('**') && trimmed.length < 50)) {
         const titleText = trimmed.replace(/^#+\s*/, '').replace(/\*\*/g, '');
         elements.push(
           <h3 key={index} className="text-lg md:text-xl font-medium tracking-tight text-white mt-8 mb-3 pb-2 border-b border-zinc-800">
@@ -1127,7 +1198,7 @@ export default function Home() {
                 <div className="flex items-center gap-3">
                   <PlanPreview initialPlan={workout} />
                   <button
-                    onClick={() => { setWorkout(null); setIsConfirmedPlan(false); }}
+                    onClick={() => { setWorkout(null); setIsConfirmedPlan(false); resetRefinement(); }}
                     className="px-4 py-2 rounded-full border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs"
                   >
                     Edit Profile & Inputs
@@ -1139,6 +1210,92 @@ export default function Home() {
                 
                 {/* Formatted Workout Rendering */}
                 {renderFormattedWorkout(workout)}
+
+                {/* REFINE SECTION */}
+                {!isConfirmedPlan && (
+                  <div className="mt-10 pt-8 border-t border-zinc-800">
+                    <div className="bg-zinc-900/90 border border-zinc-700/60 rounded-xl p-6 space-y-5">
+                      <div>
+                        <h4 className="text-sm font-semibold text-white tracking-wide uppercase mb-1">Refine Your Protocol</h4>
+                        <p className="text-xs text-zinc-400 font-light leading-relaxed">
+                          Want to adjust anything? Describe it below in English. Only what you ask for will change.
+                          Your survey answers and any changes already applied stay locked.
+                        </p>
+                      </div>
+
+                      {changeLog.length > 0 && (
+                        <div className="space-y-3">
+                          <p className="text-[11px] uppercase tracking-wider text-zinc-500 font-medium">Applied Changes</p>
+                          <ol className="space-y-2">
+                            {changeLog.map((c, i) => (
+                              <li key={i} className="rounded-lg border border-zinc-800 bg-zinc-950/60 p-3 text-xs">
+                                <p className="text-zinc-200">
+                                  <span className="text-zinc-500 mr-2">{String(i + 1).padStart(2, '0')}</span>
+                                  {c.request}
+                                </p>
+                                <p className="text-zinc-500 mt-1 font-light">{c.summary}</p>
+                              </li>
+                            ))}
+                          </ol>
+                        </div>
+                      )}
+
+                      <div className="flex flex-wrap gap-2">
+                        {[
+                          'Add more stretching on Day 2',
+                          'Swap the rest day from Wednesday to Thursday',
+                          'Move leg training to a different day',
+                        ].map((example) => (
+                          <button
+                            type="button"
+                            key={example}
+                            onClick={() => setRefineInput(example)}
+                            disabled={refining}
+                            className="px-3 py-1.5 rounded-full border border-zinc-800 text-[11px] text-zinc-400 hover:text-zinc-100 hover:border-zinc-600 transition disabled:opacity-50"
+                          >
+                            {example}
+                          </button>
+                        ))}
+                      </div>
+
+                      <textarea
+                        value={refineInput}
+                        onChange={(e) => setRefineInput(e.target.value)}
+                        onKeyDown={(e) => {
+                          if (e.key === 'Enter' && (e.metaKey || e.ctrlKey)) handleRefinePlan();
+                        }}
+                        maxLength={1000}
+                        rows={3}
+                        disabled={refining}
+                        placeholder="e.g. More mobility work on Day 3, and make Saturday a rest day instead of Sunday."
+                        className="w-full bg-zinc-800/50 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 resize-none disabled:opacity-60"
+                      />
+
+                      {refineError && <p className="text-xs text-red-400">{refineError}</p>}
+
+                      <div className="flex flex-col sm:flex-row sm:items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={handleRefinePlan}
+                          disabled={refining || !refineInput.trim()}
+                          className="w-full sm:w-auto px-6 py-3 rounded-full bg-white text-black hover:bg-zinc-200 transition font-semibold text-xs tracking-wider uppercase disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          {refining ? 'Updating Protocol…' : 'Apply Changes ↗'}
+                        </button>
+                        {planHistory.length > 0 && (
+                          <button
+                            type="button"
+                            onClick={handleUndoRefine}
+                            disabled={refining}
+                            className="w-full sm:w-auto px-5 py-3 rounded-full border border-zinc-700 text-zinc-300 hover:bg-zinc-800 transition text-xs tracking-wider uppercase disabled:opacity-40"
+                          >
+                            Undo Last Change
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
 
                 {/* CONFIRMATION SECTION */}
                 <div className="mt-10 pt-8 border-t border-zinc-800 space-y-6">
