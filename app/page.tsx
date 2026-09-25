@@ -123,8 +123,12 @@ export default function Home() {
   
   const [formData, setFormData] = useState({
     level: 'Intermediate',
-    weight: '75 kg',
-    height: '180 cm',
+    weight: '75',
+    weightUnit: 'kg' as 'kg' | 'lb',
+    height: '180',
+    heightFt: '5',
+    heightIn: '11',
+    heightUnit: 'cm' as 'cm' | 'ft',
     goal: 'Explosiveness & Power',
     targetDistance: 'Marathon (42.2 km)',
     cyclingTarget: 'FTP & Threshold Power',
@@ -151,6 +155,71 @@ export default function Home() {
     setTimeout(() => {
       setHasEntered(true);
     }, 900);
+  };
+
+  const KG_PER_LB = 0.45359237;
+  const CM_PER_IN = 2.54;
+
+  const round1 = (n: number) => Math.round(n * 10) / 10;
+
+  const heightInCm = (): number | null => {
+    if (formData.heightUnit === 'cm') {
+      const cm = parseFloat(formData.height);
+      return isNaN(cm) ? null : cm;
+    }
+    const ft = parseFloat(formData.heightFt) || 0;
+    const inch = parseFloat(formData.heightIn) || 0;
+    const total = ft * 12 + inch;
+    return total > 0 ? total * CM_PER_IN : null;
+  };
+
+  const switchWeightUnit = (unit: 'kg' | 'lb') => {
+    if (unit === formData.weightUnit) return;
+    const w = parseFloat(formData.weight);
+    const converted = isNaN(w)
+      ? formData.weight
+      : String(round1(unit === 'lb' ? w / KG_PER_LB : w * KG_PER_LB));
+    setFormData((prev) => ({ ...prev, weightUnit: unit, weight: converted }));
+  };
+
+  const switchHeightUnit = (unit: 'cm' | 'ft') => {
+    if (unit === formData.heightUnit) return;
+    const cm = heightInCm();
+    if (unit === 'ft') {
+      if (cm === null) {
+        setFormData((prev) => ({ ...prev, heightUnit: unit }));
+        return;
+      }
+      const totalIn = Math.round(cm / CM_PER_IN);
+      setFormData((prev) => ({
+        ...prev,
+        heightUnit: unit,
+        heightFt: String(Math.floor(totalIn / 12)),
+        heightIn: String(totalIn % 12),
+      }));
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        heightUnit: unit,
+        height: cm === null ? prev.height : String(Math.round(cm)),
+      }));
+    }
+  };
+
+  // Always give the coach both unit systems so nothing is misread.
+  const describeWeight = (): string => {
+    const w = parseFloat(formData.weight);
+    if (isNaN(w)) return 'Not provided';
+    const kg = formData.weightUnit === 'kg' ? w : w * KG_PER_LB;
+    const lb = formData.weightUnit === 'lb' ? w : w / KG_PER_LB;
+    return `${round1(kg)} kg (${Math.round(lb)} lb)`;
+  };
+
+  const describeHeight = (): string => {
+    const cm = heightInCm();
+    if (cm === null) return 'Not provided';
+    const totalIn = Math.round(cm / CM_PER_IN);
+    return `${Math.round(cm)} cm (${Math.floor(totalIn / 12)} ft ${totalIn % 12} in)`;
   };
 
   const handleSelect = (field: string, value: any) => {
@@ -214,7 +283,7 @@ export default function Home() {
     STRICT ATHLETE SURVEY PARAMETERS:
     - Primary Sport: ${selectedSportKey}
     - Experience Level: ${formData.level}
-    - Biometrics: Weight: ${formData.weight}, Height: ${formData.height}
+    - Biometrics: Weight: ${describeWeight()}, Height: ${describeHeight()}
     - Specific Goal / Focus: ${goalSummary}
     - Training Frequency: EXACTLY ${formData.daysPerWeek}. You MUST generate exactly this number of training days. No more, no less.
     - Available Equipment / Setting: ${formData.equipment.join(', ')}
@@ -616,26 +685,81 @@ export default function Home() {
                           </div>
                         </div>
 
-                        <div className="grid grid-cols-2 gap-4">
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                           <div>
-                            <label className="block text-xs uppercase tracking-wider text-zinc-400 mb-2 font-medium">Body Weight</label>
-                            <input
-                              type="text"
-                              value={formData.weight}
-                              onChange={(e) => handleSelect('weight', e.target.value)}
-                              placeholder="e.g. 75 kg"
-                              className="w-full bg-zinc-800/50 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
-                            />
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="block text-xs uppercase tracking-wider text-zinc-400 font-medium">Body Weight</label>
+                              <UnitToggle
+                                options={['kg', 'lb']}
+                                value={formData.weightUnit}
+                                onChange={(u) => switchWeightUnit(u as 'kg' | 'lb')}
+                              />
+                            </div>
+                            <div className="relative">
+                              <input
+                                type="number"
+                                inputMode="decimal"
+                                min="0"
+                                step="0.1"
+                                value={formData.weight}
+                                onChange={(e) => handleSelect('weight', e.target.value)}
+                                placeholder={formData.weightUnit === 'kg' ? 'e.g. 75' : 'e.g. 165'}
+                                className={`${UNIT_INPUT_CLASS} pr-10`}
+                              />
+                              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500 pointer-events-none">{formData.weightUnit}</span>
+                            </div>
                           </div>
                           <div>
-                            <label className="block text-xs uppercase tracking-wider text-zinc-400 mb-2 font-medium">Height</label>
-                            <input
-                              type="text"
-                              value={formData.height}
-                              onChange={(e) => handleSelect('height', e.target.value)}
-                              placeholder="e.g. 180 cm"
-                              className="w-full bg-zinc-800/50 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500"
-                            />
+                            <div className="flex items-center justify-between mb-2">
+                              <label className="block text-xs uppercase tracking-wider text-zinc-400 font-medium">Height</label>
+                              <UnitToggle
+                                options={['cm', 'ft']}
+                                value={formData.heightUnit}
+                                onChange={(u) => switchHeightUnit(u as 'cm' | 'ft')}
+                              />
+                            </div>
+                            {formData.heightUnit === 'cm' ? (
+                              <div className="relative">
+                                <input
+                                  type="number"
+                                  inputMode="decimal"
+                                  min="0"
+                                  value={formData.height}
+                                  onChange={(e) => handleSelect('height', e.target.value)}
+                                  placeholder="e.g. 180"
+                                  className={`${UNIT_INPUT_CLASS} pr-10`}
+                                />
+                                <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500 pointer-events-none">cm</span>
+                              </div>
+                            ) : (
+                              <div className="grid grid-cols-2 gap-2">
+                                <div className="relative">
+                                  <input
+                                    type="number"
+                                    inputMode="numeric"
+                                    min="0"
+                                    value={formData.heightFt}
+                                    onChange={(e) => handleSelect('heightFt', e.target.value)}
+                                    placeholder="5"
+                                    className={`${UNIT_INPUT_CLASS} pr-8`}
+                                  />
+                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500 pointer-events-none">ft</span>
+                                </div>
+                                <div className="relative">
+                                  <input
+                                    type="number"
+                                    inputMode="numeric"
+                                    min="0"
+                                    max="11"
+                                    value={formData.heightIn}
+                                    onChange={(e) => handleSelect('heightIn', e.target.value)}
+                                    placeholder="11"
+                                    className={`${UNIT_INPUT_CLASS} pr-8`}
+                                  />
+                                  <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-zinc-500 pointer-events-none">in</span>
+                                </div>
+                              </div>
+                            )}
                           </div>
                         </div>
 
@@ -1064,6 +1188,37 @@ export default function Home() {
         </main>
       </div>
 
+    </div>
+  );
+}
+
+const UNIT_INPUT_CLASS =
+  'w-full bg-zinc-800/50 border border-zinc-800 rounded-xl p-3 text-xs text-zinc-200 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none [&::-webkit-outer-spin-button]:appearance-none';
+
+function UnitToggle({
+  options,
+  value,
+  onChange,
+}: {
+  options: string[];
+  value: string;
+  onChange: (unit: string) => void;
+}) {
+  return (
+    <div className="flex rounded-full border border-zinc-800 bg-zinc-900/60 p-0.5">
+      {options.map((opt) => (
+        <button
+          type="button"
+          key={opt}
+          onClick={() => onChange(opt)}
+          aria-pressed={value === opt}
+          className={`px-2.5 py-0.5 rounded-full text-[10px] font-medium uppercase tracking-wider transition ${
+            value === opt ? 'bg-zinc-100 text-black' : 'text-zinc-400 hover:text-zinc-200'
+          }`}
+        >
+          {opt}
+        </button>
+      ))}
     </div>
   );
 }
