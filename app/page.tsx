@@ -3,7 +3,9 @@
 import { Fragment, useEffect, useState } from 'react';
 import PlanPreview from '@/app/components/PlanPreview';
 import Dashboard from '@/app/components/Dashboard';
-import { ActiveProtocol, clearProtocol, loadProtocol, saveProtocol, todayISO } from '@/lib/protocol';
+import { ActiveProtocol, clearProtocol, loadProtocol, parsePlan, replaceDay, saveProtocol, todayISO } from '@/lib/protocol';
+import { TIMEFRAME_OPTIONS, effectiveTimeframe, isRealistic, minimumWeeks } from '@/lib/timeframe';
+import { STREAM_ERROR_MARKER } from '@/lib/constants';
 
 interface SportData {
   tag: string;
@@ -139,6 +141,7 @@ export default function Home() {
     gymTargetZones: ['Whole Body / Balanced'],
     gymStrengthGoal: 'Hypertrophy & Muscle Growth',
     daysPerWeek: '4 Days / Wk',
+    timeframe: '12 Weeks',
     equipment: ['Full Commercial Gym'] as string[],
     injuries: '',
     additionalRequests: '',
@@ -157,6 +160,8 @@ export default function Home() {
   const [refineInput, setRefineInput] = useState<string>('');
   const [refining, setRefining] = useState<boolean>(false);
   const [refineError, setRefineError] = useState<string | null>(null);
+  const [streaming, setStreaming] = useState<boolean>(false);
+  const [targetWeeks, setTargetWeeks] = useState<number>(0);
 
   // Active protocol saved on this device, and whether the daily dashboard is showing.
   const [activeProtocol, setActiveProtocol] = useState<ActiveProtocol | null>(null);
@@ -192,6 +197,7 @@ export default function Home() {
           survey: lockedSurvey,
           plan: workout,
           weightUnit: formData.weightUnit,
+          targetWeeks,
           startedAt: todayISO(),
           changeLog,
           sessions: [],
@@ -349,12 +355,32 @@ export default function Home() {
     });
   };
 
+  // The goal option the timeframe is judged against.
+  const currentGoalKey = (): string => {
+    if (activeSport.isRunningSpecial) return formData.targetDistance;
+    if (activeSport.isCyclingSpecial) return formData.cyclingTarget;
+    if (activeSport.isSwimmingSpecial) return formData.swimmingTarget;
+    if (activeSport.isTriathlonSpecial) return formData.triathlonTarget;
+    if (activeSport.isGymSpecial) return formData.gymStrengthGoal;
+    return formData.goal;
+  };
+  const minTimeframeWeeks = minimumWeeks(currentGoalKey(), formData.level);
+  const timeframe = effectiveTimeframe(formData.timeframe, minTimeframeWeeks);
+
+  const describeTimeframe = (): string => {
+    if (timeframe.weeks === 0) return 'No fixed deadline (progress at a sustainable pace)';
+    const target = new Date();
+    target.setDate(target.getDate() + timeframe.weeks * 7);
+    return `${timeframe.weeks} weeks (target around ${target.toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' })})`;
+  };
+
   const handleGenerateWorkout = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedSportKey) return;
     setLoading(true);
     setWorkout(null);
     setIsConfirmedPlan(false);
+    setEditingActive(false);
     resetRefinement();
 
     let goalSummary = formData.goal;
@@ -375,16 +401,18 @@ export default function Home() {
       `- Experience Level: ${formData.level}`,
       `- Biometrics: Weight: ${describeWeight()}, Height: ${describeHeight()}`,
       `- Specific Goal / Focus: ${goalSummary}`,
+      `- Goal Timeframe: ${describeTimeframe()}`,
       `- Training Frequency: EXACTLY ${formData.daysPerWeek}`,
       `- Available Equipment / Setting: ${formData.equipment.join(', ')}`,
       `- Injury Constraints / Limitations: ${formData.injuries || 'None'}`,
       `- Additional Requests: ${formData.additionalRequests || 'None'}`,
     ].join('\n');
     setLockedSurvey(surveySummary);
+    setTargetWeeks(timeframe.weeks);
 
     const fullPrompt = `
     Act as a world-class elite athletic coach (${activeSport.coachName}).
-    Design a precise, realistic, professional one-week training program for an athlete in ${selectedSportKey}, based strictly on this survey.
+    Design a precise, realistic, professional training program for an athlete in ${selectedSportKey}, based strictly on this survey: the detailed plan for week 1, plus a roadmap to reach the goal within the timeframe.
 
     STRICT ATHLETE SURVEY PARAMETERS:
 ${surveySummary}
@@ -392,7 +420,7 @@ ${surveySummary}
     You MUST generate exactly ${formData.daysPerWeek} training days. No more, no less. Every other day of the week is a rest day.
 
     CRITICAL FORMATTING RULES (UNBREAKABLE):
-    1. Start with a "Coach's Mindset & Tactical Briefing" paragraph that explains, in 3-5 sentences, how this week is built around the survey answers.
+    1. Start with a "Coach's Mindset & Tactical Briefing" paragraph that explains, in 3-5 sentences, how this week is built around the survey answers and what is realistically achievable in the timeframe.
     2. Then a line "Weekly Layout:" listing Monday to Sunday, each with its session focus or "Rest".
     3. For EVERY training day, use this EXACT markdown template, with the weekday from the Weekly Layout:
 
@@ -404,11 +432,12 @@ ${surveySummary}
 
     4. VIDEO TUTORIAL column: add a link ONLY for a single, universally named exercise or drill (e.g. Barbell Bench Press, Romanian Deadlift, A-Skip, Catch-Up Drill) where the first YouTube result will clearly show exactly that movement. The search query must be the exact standard exercise name followed by "proper form" (words joined with +). For generic or combined blocks (dynamic mobility, warm-up, easy run, intervals, circuits, cool-down) write "—".
     5. HOW TO PERFORM column: for every gym/strength exercise, plyometric, technique drill or mobility exercise, give 3-5 short execution steps separated by " ; " (setup, movement, key form points, common mistake to avoid). For plain endurance blocks (easy run, steady ride, swim set) write "—". Never use the "|" character inside a cell.
-    6. After the last day, add a "Progression & Recovery" section (3-5 sentences) on how to progress over the next weeks and how to recover.
+    6. After the last day, add a "Progression & Roadmap" section: the phases from week 1 to the end of the timeframe (week ranges, focus and how volume/intensity progress), plus 2-3 sentences on recovery.
     7. You must use the pipe symbols exactly as shown above.
     8. Absolutely NO emojis.
     `;
 
+    let text = '';
     try {
       const response = await fetch(`${window.location.origin}/api/generate`, {
         method: 'POST',
@@ -416,18 +445,41 @@ ${surveySummary}
         body: JSON.stringify({ prompt: fullPrompt }),
       });
 
-      if (!response.ok) {
-        alert('Server Error');
+      if (!response.ok || !response.body) {
+        const data = await response.json().catch(() => ({}));
+        alert(data.error || 'Server Error');
         return;
       }
 
-      const data = await response.json();
-      if (data.result) {
-        setWorkout(data.result);
+      // Show the plan while it is being written.
+      setStreaming(true);
+      const reader = response.body.getReader();
+      const decoder = new TextDecoder();
+      let lastPaint = 0;
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        text += decoder.decode(value, { stream: true });
+        const now = Date.now();
+        if (now - lastPaint > 120) {
+          lastPaint = now;
+          setWorkout(text.split(STREAM_ERROR_MARKER)[0]);
+        }
       }
+      text += decoder.decode();
+
+      const [plan, error] = text.split(STREAM_ERROR_MARKER);
+      if (error !== undefined && plan.trim().length < 200) {
+        setWorkout(null);
+        alert('The coach could not finish your protocol. Please try again.');
+        return;
+      }
+      setWorkout(plan.trim() || null);
     } catch (error) {
       console.error(error);
+      if (!text) alert('Connection error. Please try again.');
     } finally {
+      setStreaming(false);
       setLoading(false);
     }
   };
@@ -452,14 +504,29 @@ ${surveySummary}
       });
       const data = await response.json().catch(() => ({}));
 
-      if (!response.ok || !data.result) {
+      if (!response.ok) {
         setRefineError(data.error || 'Something went wrong. Please try again.');
+        return;
+      }
+
+      // Apply only the days that changed; everything else stays byte-for-byte identical.
+      const existing = new Set(parsePlan(workout).map((d) => d.number));
+      let updated = workout;
+      for (const d of (data.days ?? []) as { number: number; block: string }[]) {
+        if (existing.has(d.number)) updated = replaceDay(updated, d.number, d.block);
+      }
+      if (data.layout) {
+        updated = updated.replace(/^.*Weekly Layout.*$/m, data.layout);
+      }
+
+      if (updated === workout) {
+        setRefineError(data.summary ? `No changes applied: ${data.summary}` : 'No changes could be applied. Try rephrasing your request.');
         return;
       }
 
       setPlanHistory((prev) => [...prev, workout]);
       setChangeLog((prev) => [...prev, { request, summary: data.summary || 'Plan updated.' }]);
-      setWorkout(data.result);
+      setWorkout(updated);
       setRefineInput('');
     } catch (error) {
       console.error(error);
@@ -1185,6 +1252,48 @@ ${surveySummary}
                         </div>
 
                         <div>
+                          <label className="block text-xs uppercase tracking-wider text-zinc-400 mb-1 font-medium">Goal Timeframe</label>
+                          <p className="text-[11px] text-zinc-500 mb-3 font-light">
+                            By when do you want to reach your goal?
+                            {minTimeframeWeeks > 4 && (
+                              <>
+                                {' '}For a {formData.level.split(' ')[0].toLowerCase()} athlete targeting {currentGoalKey()}, the shortest realistic timeframe is{' '}
+                                <span className="text-zinc-300">{Number.isFinite(minTimeframeWeeks) ? `${minTimeframeWeeks} weeks` : 'longer than 24 weeks'}</span>.
+                              </>
+                            )}
+                          </p>
+                          <div className="grid grid-cols-3 sm:grid-cols-6 gap-2">
+                            {TIMEFRAME_OPTIONS.map((opt) => {
+                              const realistic = isRealistic(opt.weeks, minTimeframeWeeks);
+                              const selected = timeframe.label === opt.label;
+                              return (
+                                <button
+                                  type="button"
+                                  key={opt.label}
+                                  disabled={!realistic}
+                                  title={realistic ? undefined : 'Not realistic for your level and goal'}
+                                  onClick={() => handleSelect('timeframe', opt.label)}
+                                  className={`py-3 px-2 rounded-xl text-[11px] font-medium text-center border transition ${
+                                    selected
+                                      ? 'bg-zinc-100 text-black border-white'
+                                      : realistic
+                                        ? 'bg-zinc-800/40 text-zinc-300 border-zinc-800 hover:bg-zinc-800'
+                                        : 'bg-zinc-900/40 text-zinc-600 border-zinc-900 line-through cursor-not-allowed'
+                                  }`}
+                                >
+                                  {opt.label}
+                                </button>
+                              );
+                            })}
+                          </div>
+                          {timeframe.label !== formData.timeframe && (
+                            <p className="text-[11px] text-amber-400/90 mt-2">
+                              {formData.timeframe} is too short for this goal at your level, so {timeframe.label.toLowerCase()} was selected.
+                            </p>
+                          )}
+                        </div>
+
+                        <div>
                           <label className="block text-xs uppercase tracking-wider text-zinc-400 mb-3 font-medium">Training Frequency</label>
                           <div className="grid grid-cols-4 gap-3">
                             {['2 Days / Wk', '3 Days / Wk', '4 Days / Wk', '5 Days / Wk'].map((freq) => (
@@ -1263,7 +1372,7 @@ ${surveySummary}
                   <h2 className="text-xl font-light text-white">{selectedSportKey} — Elite Protocol</h2>
                 </div>
                 <div className="flex items-center gap-3">
-                  <PlanPreview initialPlan={workout} />
+                  {!streaming && <PlanPreview initialPlan={workout} />}
                   <button
                     onClick={() => { setWorkout(null); setIsConfirmedPlan(false); resetRefinement(); }}
                     className="px-4 py-2 rounded-full border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs"
@@ -1278,8 +1387,15 @@ ${surveySummary}
                 {/* Formatted Workout Rendering */}
                 {renderFormattedWorkout(workout)}
 
+                {streaming && (
+                  <div className="flex items-center gap-3 pt-4 text-xs text-zinc-400">
+                    <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
+                    Your coach is writing your protocol…
+                  </div>
+                )}
+
                 {/* REFINE SECTION */}
-                {!isConfirmedPlan && (
+                {!isConfirmedPlan && !streaming && (
                   <div className="mt-10 pt-8 border-t border-zinc-800">
                     <div className="bg-zinc-900/90 border border-zinc-700/60 rounded-xl p-6 space-y-5">
                       <div>
@@ -1365,6 +1481,7 @@ ${surveySummary}
                 )}
 
                 {/* CONFIRMATION SECTION */}
+                {!streaming && (
                 <div className="mt-10 pt-8 border-t border-zinc-800 space-y-6">
                   {!isConfirmedPlan ? (
                     <div className="bg-zinc-900/90 border border-zinc-700/60 rounded-xl p-6 space-y-6">
@@ -1409,6 +1526,7 @@ ${surveySummary}
                     </div>
                   )}
                 </div>
+                )}
 
               </div>
             </div>

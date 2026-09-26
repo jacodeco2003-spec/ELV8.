@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
 import { GENERATE_SYSTEM_PROMPT, REFINE_SYSTEM_PROMPT } from './prompts';
+import { STREAM_ERROR_MARKER } from '@/lib/constants';
 
 export const maxDuration = 120;
 
@@ -32,6 +33,29 @@ NEW ADJUSTMENT REQUEST FROM THE ATHLETE:
 ${body.request.slice(0, MAX_REQUEST_CHARS)}`;
 }
 
+const DAY_START = /^(?:#+\s*)?(?:\*\*)?\s*Day\s+(\d+)\b/i;
+
+/** Parse "CHANGES: … ===DAY=== … ===LAYOUT=== …" into structured edits. */
+function parseRefine(text: string) {
+  const parts = text.split(/^\s*===(DAY|LAYOUT)===\s*$/m);
+  const summary = (parts[0] || '').replace(/^\s*CHANGES:\s*/i, '').trim();
+  const days: { number: number; block: string }[] = [];
+  let layout: string | null = null;
+
+  for (let i = 1; i < parts.length; i += 2) {
+    const kind = parts[i];
+    const content = (parts[i + 1] || '').trim();
+    if (kind === 'DAY') {
+      const m = content.match(DAY_START);
+      if (m && content.includes('|')) days.push({ number: Number(m[1]), block: content });
+    } else if (kind === 'LAYOUT') {
+      const line = content.split('\n').find((l) => /Weekly Layout/i.test(l));
+      if (line) layout = line.trim();
+    }
+  }
+  return { summary, days, layout };
+}
+
 export async function POST(req: Request) {
   try {
     const body = (await req.json()) as GenerateBody | RefineBody;
@@ -43,55 +67,67 @@ export async function POST(req: Request) {
       );
     }
 
-    const isRefine = body.mode === 'refine';
-    if (isRefine && (!body.request?.trim() || !body.currentPlan || !body.survey)) {
-      return NextResponse.json({ error: 'Missing refine data' }, { status: 400 });
+    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
+
+    // ---------- REFINE: only the changed days come back, so it is fast ----------
+    if (body.mode === 'refine') {
+      if (!body.request?.trim() || !body.currentPlan || !body.survey) {
+        return NextResponse.json({ error: 'Missing refine data' }, { status: 400 });
+      }
+      const response = await anthropic.messages.create({
+        model: MODEL,
+        max_tokens: 6000,
+        system: REFINE_SYSTEM_PROMPT,
+        messages: [{ role: 'user', content: buildRefinePrompt(body) }],
+      });
+      const text = response.content
+        .filter((block) => block.type === 'text')
+        .map((block) => block.text)
+        .join('\n');
+      return NextResponse.json(parseRefine(text));
     }
-    if (!isRefine && !(body as GenerateBody).prompt) {
+
+    // ---------- GENERATE: streamed, so the plan appears while it is written ----------
+    if (!body.prompt) {
       return NextResponse.json({ error: 'Missing prompt' }, { status: 400 });
     }
 
-    const anthropic = new Anthropic({ apiKey: process.env.ANTHROPIC_API_KEY });
-
-    const response = await anthropic.messages.create({
+    const stream = anthropic.messages.stream({
       model: MODEL,
       max_tokens: 12000,
-      system: isRefine ? REFINE_SYSTEM_PROMPT : GENERATE_SYSTEM_PROMPT,
-      messages: [
-        {
-          role: 'user',
-          content: isRefine ? buildRefinePrompt(body as RefineBody) : (body as GenerateBody).prompt,
-        },
-      ],
+      system: GENERATE_SYSTEM_PROMPT,
+      messages: [{ role: 'user', content: body.prompt }],
     });
 
-    const text = response.content
-      .filter((block) => block.type === 'text')
-      .map((block) => block.text)
-      .join('\n');
+    const encoder = new TextEncoder();
+    const readable = new ReadableStream<Uint8Array>({
+      async start(controller) {
+        try {
+          for await (const event of stream) {
+            if (event.type === 'content_block_delta' && event.delta.type === 'text_delta') {
+              controller.enqueue(encoder.encode(event.delta.text));
+            }
+          }
+        } catch (error) {
+          console.error('Generate stream error:', error);
+          const message = error instanceof Error ? error.message : 'Generation failed';
+          controller.enqueue(encoder.encode(`\n${STREAM_ERROR_MARKER} ${message}`));
+        } finally {
+          controller.close();
+        }
+      },
+      cancel() {
+        stream.abort();
+      },
+    });
 
-    if (!isRefine) {
-      return NextResponse.json({ result: text || 'No plan generated.' });
-    }
-
-    // Split "CHANGES: ... ===PLAN=== ..." into a summary and the updated plan.
-    const marker = text.indexOf('===PLAN===');
-    if (marker === -1) {
-      return NextResponse.json(
-        { error: 'The coach could not apply that change. Please rephrase and try again.' },
-        { status: 502 }
-      );
-    }
-    const summary = text.slice(0, marker).replace(/^\s*CHANGES:\s*/i, '').trim();
-    const plan = text.slice(marker + '===PLAN==='.length).trim();
-    if (plan.length < 200) {
-      return NextResponse.json(
-        { error: 'The coach returned an incomplete plan. Please try again.' },
-        { status: 502 }
-      );
-    }
-
-    return NextResponse.json({ result: plan, summary });
+    return new Response(readable, {
+      headers: {
+        'Content-Type': 'text/plain; charset=utf-8',
+        'Cache-Control': 'no-cache, no-transform',
+        'X-Accel-Buffering': 'no',
+      },
+    });
   } catch (error: unknown) {
     console.error('Generate Route Error:', error);
     const message = error instanceof Error ? error.message : 'Internal Server Error';

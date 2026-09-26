@@ -21,6 +21,7 @@ export type ActiveProtocol = {
   survey: string;
   plan: string;
   weightUnit: WeightUnit;
+  targetWeeks?: number; // 0 or missing = no fixed deadline
   startedAt: string; // YYYY-MM-DD
   changeLog: { request: string; summary: string }[];
   sessions: SessionLog[];

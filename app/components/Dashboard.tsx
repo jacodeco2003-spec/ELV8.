@@ -71,6 +71,7 @@ export default function Dashboard({ protocol, onChange, onViewPlan, onNewProtoco
         <div>
           <span className="text-xs uppercase tracking-widest text-zinc-500 block mb-1">
             {todayLabel} · Week {week}
+            {protocol.targetWeeks ? ` of ${protocol.targetWeeks}` : ''}
           </span>
           <h2 className="text-2xl font-light text-white">{protocol.sport} — Active Protocol</h2>
         </div>
