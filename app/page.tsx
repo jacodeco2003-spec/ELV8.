@@ -3,7 +3,7 @@
 import { Fragment, useEffect, useState } from 'react';
 import PlanPreview from '@/app/components/PlanPreview';
 import Dashboard from '@/app/components/Dashboard';
-import { ActiveProtocol, clearProtocol, loadProtocol, parsePlan, replaceDay, saveProtocol, todayISO } from '@/lib/protocol';
+import { ActiveProtocol, clearProtocol, loadProtocol, parsePlan, replaceDay, saveProtocol, todayISO, todaySummary } from '@/lib/protocol';
 import { TIMEFRAME_OPTIONS, effectiveTimeframe, isRealistic, minimumWeeks } from '@/lib/timeframe';
 import { STREAM_ERROR_MARKER } from '@/lib/constants';
 
@@ -169,12 +169,12 @@ export default function Home() {
   const [editingActive, setEditingActive] = useState<boolean>(false);
 
   // Device storage only exists in the browser, so it is read once after the first render.
+  // The plan is not opened automatically: the home screen offers a 'My Active Plan' entry.
   useEffect(() => {
     const saved = loadProtocol();
     if (saved) {
       // eslint-disable-next-line react-hooks/set-state-in-effect
       setActiveProtocol(saved);
-      setShowDashboard(true);
     }
   }, []);
 
@@ -704,7 +704,15 @@ ${surveySummary}
                   onClick={() => { setShowDashboard(true); setFocusMode(false); window.scrollTo({ top: 0 }); }}
                   className="px-4 py-2 rounded-full bg-white text-black hover:bg-zinc-200 transition font-medium text-xs tracking-wide"
                 >
-                  Today&apos;s Training
+                  My Active Plan
+                </button>
+              )}
+              {activeProtocol && showDashboard && (
+                <button
+                  onClick={() => { setShowDashboard(false); setSelectedSportKey(null); setWorkout(null); setStep(1); setIsConfirmedPlan(false); setEditingActive(false); resetRefinement(); window.scrollTo({ top: 0 }); }}
+                  className="px-4 py-2 rounded-full border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 transition font-medium text-xs tracking-wide"
+                >
+                  Home
                 </button>
               )}
               {!(activeProtocol && showDashboard) && (
@@ -730,7 +738,31 @@ ${surveySummary}
               onNewProtocol={startNewProtocol}
             />
           ) : !selectedSportKey ? (
-            <div className="relative w-full h-[calc(100vh-4rem)] bg-zinc-950 flex flex-col md:flex-row overflow-hidden">
+            <>
+            {activeProtocol && (() => {
+              const t = todaySummary(activeProtocol);
+              return (
+                <div className="relative z-40 border-b border-zinc-800 bg-zinc-900/95 backdrop-blur">
+                  <div className="max-w-6xl mx-auto px-6 py-4 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-500 font-semibold">My Active Plan</p>
+                      <p className="text-sm text-white truncate">
+                        {activeProtocol.sport} · Week {t.week}
+                        {activeProtocol.targetWeeks ? ` of ${activeProtocol.targetWeeks}` : ''}
+                        <span className="text-zinc-400"> · Today: {t.label}</span>
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => { setShowDashboard(true); window.scrollTo({ top: 0 }); }}
+                      className="shrink-0 px-5 py-2.5 rounded-full bg-white text-black hover:bg-zinc-200 transition font-semibold text-xs tracking-wider uppercase"
+                    >
+                      Open My Plan ↗
+                    </button>
+                  </div>
+                </div>
+              );
+            })()}
+            <div className={`relative w-full ${activeProtocol ? 'md:h-[calc(100vh-4rem-4.75rem)]' : 'h-[calc(100vh-4rem)]'} bg-zinc-950 flex flex-col md:flex-row overflow-hidden`}>
               
               <svg className="hidden md:block absolute inset-0 w-full h-full pointer-events-none z-30" preserveAspectRatio="none">
                 <line x1="55%" y1="0" x2="45%" y2="100%" stroke="white" strokeWidth="4" style={{ filter: 'drop-shadow(0 0 15px rgba(255,255,255,0.9))' }} />
@@ -818,6 +850,7 @@ ${surveySummary}
               </div>
 
             </div>
+            </>
           ) : !workout ? (
             
             /* CONFIGURATION FORM */

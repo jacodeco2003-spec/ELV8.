@@ -192,3 +192,16 @@ export const EMPTY_CELL = /^[-—–\s]*$/;
 export function sessionKey(week: number, day: number): string {
   return `${week}-${day}`;
 }
+
+/** Short description of today's session for the home screen. */
+export function todaySummary(p: ActiveProtocol): { week: number; label: string } {
+  const days = parsePlan(p.plan);
+  const week = currentWeek(p.startedAt);
+  const hasWeekdays = days.some((d) => d.weekday);
+  const done = (n: number) => p.sessions.some((s) => s.key === sessionKey(week, n));
+  const today = hasWeekdays
+    ? days.find((d) => d.weekday === WEEKDAYS[weekdayIndex()])
+    : days.find((d) => !done(d.number));
+  if (!today) return { week, label: 'Rest & recovery day' };
+  return { week, label: `Day ${today.number}: ${today.focus}${done(today.number) ? ' ✓ done' : ''}` };
+}
