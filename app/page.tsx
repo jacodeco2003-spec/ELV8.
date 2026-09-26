@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { Fragment, useState } from 'react';
 import PlanPreview from '@/app/components/PlanPreview';
 
 interface SportData {
@@ -319,13 +319,16 @@ ${surveySummary}
     3. For EVERY training day, use this EXACT markdown template, with the weekday from the Weekly Layout:
 
     Day [Number] - [Weekday]: [Focus Area]
-    | Exercise / Workout Block | Sets x Reps / Distance / Duration | Rest / Pace / Power Zone | Key Coaching Cue | Video Tutorial |
-    |---|---|---|---|---|
-    | [Exercise Name] | [Sets/Reps] | [Rest] | [Cue] | [Watch Guide](https://www.youtube.com/results?search_query=exercise+tutorial) |
+    | Exercise / Workout Block | Sets x Reps / Distance / Duration | Rest / Pace / Power Zone | Key Coaching Cue | Video Tutorial | How To Perform |
+    |---|---|---|---|---|---|
+    | Barbell Back Squat | 4 x 6 @ RIR 2 | 2-3 min | Brace before descending | [Watch Guide](https://www.youtube.com/results?search_query=barbell+back+squat+proper+form) | Set the bar on your upper back and grip it just outside the shoulders ; Feet shoulder-width, toes slightly out ; Brace your core and sit down between your hips, knees tracking over toes ; Drive up through the whole foot, keeping the chest up |
+    | Easy aerobic run | 6 km (3.7 mi) | Z2, RPE 4 | Conversational pace | — | — |
 
-    4. After the last day, add a "Progression & Recovery" section (3-5 sentences) on how to progress over the next weeks and how to recover.
-    5. You must use the pipe symbols exactly as shown above.
-    6. Absolutely NO emojis.
+    4. VIDEO TUTORIAL column: add a link ONLY for a single, universally named exercise or drill (e.g. Barbell Bench Press, Romanian Deadlift, A-Skip, Catch-Up Drill) where the first YouTube result will clearly show exactly that movement. The search query must be the exact standard exercise name followed by "proper form" (words joined with +). For generic or combined blocks (dynamic mobility, warm-up, easy run, intervals, circuits, cool-down) write "—".
+    5. HOW TO PERFORM column: for every gym/strength exercise, plyometric, technique drill or mobility exercise, give 3-5 short execution steps separated by " ; " (setup, movement, key form points, common mistake to avoid). For plain endurance blocks (easy run, steady ride, swim set) write "—". Never use the "|" character inside a cell.
+    6. After the last day, add a "Progression & Recovery" section (3-5 sentences) on how to progress over the next weeks and how to recover.
+    7. You must use the pipe symbols exactly as shown above.
+    8. Absolutely NO emojis.
     `;
 
     try {
@@ -414,53 +417,22 @@ ${surveySummary}
         return null;
       }
 
-      const headers = validRows[0].split('|').map((h) => h.trim()).filter(Boolean);
+      const parseRow = (row: string) =>
+        row.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim());
+
+      const headers = parseRow(validRows[0]);
       const dataRows = validRows
         .slice(1)
-        .filter(row => !row.includes('---'))
-        .map((row) => row.split('|').map((c) => c.trim()).filter(Boolean));
+        .filter((row) => !/^\|?\s*:?-{3,}/.test(row.trim()))
+        .map(parseRow)
+        .filter((row) => row.some(Boolean));
 
       if (headers.length === 0 || dataRows.length === 0) {
         tableRows = [];
         return null;
       }
 
-      const tableElement = (
-        <div key={`table-${key}`} className="overflow-x-auto my-6 border border-zinc-800 rounded-xl bg-zinc-950 shadow-xl">
-          <table className="w-full text-left border-collapse text-xs md:text-sm">
-            <thead>
-              <tr className="bg-zinc-900 text-zinc-300 uppercase tracking-wider text-[11px] font-semibold border-b border-zinc-800">
-                {headers.map((h, i) => (
-                  <th key={i} className="py-3 px-4">{h}</th>
-                ))}
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-zinc-900">
-              {dataRows.map((row, rIndex) => (
-                <tr key={rIndex} className="hover:bg-zinc-900/50 transition-colors">
-                  {row.map((cell, cIndex) => {
-                    const linkMatch = cell.match(/\[(.*?)\]\((.*?)\)/);
-                    if (linkMatch) {
-                      return (
-                        <td key={cIndex} className="py-3 px-4 text-zinc-300 whitespace-nowrap">
-                          <a href={linkMatch[2]} target="_blank" rel="noreferrer" className="text-white underline underline-offset-4 font-medium hover:text-zinc-400">
-                            {linkMatch[1]} ↗
-                          </a>
-                        </td>
-                      );
-                    }
-                    return (
-                      <td key={cIndex} className="py-3 px-4 text-zinc-300">
-                        {cell.replace(/\*\*/g, '')}
-                      </td>
-                    );
-                  })}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      );
+      const tableElement = <PlanTable key={`table-${key}`} headers={headers} rows={dataRows} />;
       tableRows = [];
       return tableElement;
     };
@@ -1376,6 +1348,104 @@ function UnitToggle({
           {opt}
         </button>
       ))}
+    </div>
+  );
+}
+
+const EMPTY_CELL = /^[-—–\s]*$/;
+
+// Links the model uses as a placeholder are not trustworthy, so they are hidden.
+const isUsefulVideoLink = (url: string) =>
+  /^https:\/\/(www\.)?youtube\.com\/results\?search_query=/.test(url) &&
+  !/search_query=(exercise\+)?(tutorial|exercise)(\+tutorial)?$/i.test(url);
+
+function PlanTable({ headers, rows }: { headers: string[]; rows: string[][] }) {
+  const [openRow, setOpenRow] = useState<number | null>(null);
+  const howToIndex = headers.findIndex((h) => /how\s*to/i.test(h));
+  const visible = headers.map((_, i) => i).filter((i) => i !== howToIndex);
+
+  const renderCell = (cell: string, cIndex: number, tip: string | null, rIndex: number) => {
+    const clean = (cell || '').replace(/\*\*/g, '');
+    const linkMatch = clean.match(/\[(.*?)\]\((.*?)\)/);
+
+    if (linkMatch) {
+      if (!isUsefulVideoLink(linkMatch[2])) {
+        return <td key={cIndex} className="py-3 px-4 text-zinc-600">—</td>;
+      }
+      return (
+        <td key={cIndex} className="py-3 px-4 text-zinc-300 whitespace-nowrap">
+          <a href={linkMatch[2]} target="_blank" rel="noreferrer" className="text-white underline underline-offset-4 font-medium hover:text-zinc-400">
+            {linkMatch[1]} ↗
+          </a>
+        </td>
+      );
+    }
+
+    if (cIndex === 0 && tip) {
+      const isOpen = openRow === rIndex;
+      return (
+        <td key={cIndex} className="py-3 px-4 text-zinc-300">
+          <div className="flex items-start gap-2">
+            <span>{clean}</span>
+            <button
+              type="button"
+              onClick={() => setOpenRow(isOpen ? null : rIndex)}
+              aria-expanded={isOpen}
+              className={`shrink-0 px-2 py-0.5 rounded-md border text-[10px] font-semibold uppercase tracking-wider transition ${
+                isOpen ? 'bg-white text-black border-white' : 'border-zinc-600 text-zinc-300 hover:bg-zinc-800'
+              }`}
+            >
+              Tip
+            </button>
+          </div>
+        </td>
+      );
+    }
+
+    return (
+      <td key={cIndex} className={`py-3 px-4 ${EMPTY_CELL.test(clean) ? 'text-zinc-600' : 'text-zinc-300'}`}>
+        {EMPTY_CELL.test(clean) ? '—' : clean}
+      </td>
+    );
+  };
+
+  return (
+    <div className="overflow-x-auto my-6 border border-zinc-800 rounded-xl bg-zinc-950 shadow-xl">
+      <table className="w-full text-left border-collapse text-xs md:text-sm">
+        <thead>
+          <tr className="bg-zinc-900 text-zinc-300 uppercase tracking-wider text-[11px] font-semibold border-b border-zinc-800">
+            {visible.map((i) => (
+              <th key={i} className="py-3 px-4">{headers[i]}</th>
+            ))}
+          </tr>
+        </thead>
+        <tbody className="divide-y divide-zinc-900">
+          {rows.map((row, rIndex) => {
+            const rawTip = howToIndex >= 0 ? (row[howToIndex] || '').replace(/\*\*/g, '') : '';
+            const tip = EMPTY_CELL.test(rawTip) ? null : rawTip;
+            const steps = tip ? tip.split(/\s*;\s*/).filter(Boolean) : [];
+            return (
+              <Fragment key={rIndex}>
+                <tr className="hover:bg-zinc-900/50 transition-colors">
+                  {visible.map((i) => renderCell(row[i], i, tip, rIndex))}
+                </tr>
+                {tip && openRow === rIndex && (
+                  <tr className="bg-zinc-900/70">
+                    <td colSpan={visible.length} className="px-4 py-4">
+                      <p className="text-[11px] uppercase tracking-wider text-zinc-500 font-semibold mb-2">How to perform</p>
+                      <ol className="list-decimal list-inside space-y-1.5 text-zinc-300 text-xs md:text-sm leading-relaxed">
+                        {steps.map((step, sIndex) => (
+                          <li key={sIndex}>{step}</li>
+                        ))}
+                      </ol>
+                    </td>
+                  </tr>
+                )}
+              </Fragment>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }
