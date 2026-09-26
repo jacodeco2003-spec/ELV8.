@@ -1,7 +1,9 @@
 'use client';
 
-import { Fragment, useState } from 'react';
+import { Fragment, useEffect, useState } from 'react';
 import PlanPreview from '@/app/components/PlanPreview';
+import Dashboard from '@/app/components/Dashboard';
+import { ActiveProtocol, clearProtocol, loadProtocol, saveProtocol, todayISO } from '@/lib/protocol';
 
 interface SportData {
   tag: string;
@@ -155,6 +157,82 @@ export default function Home() {
   const [refineInput, setRefineInput] = useState<string>('');
   const [refining, setRefining] = useState<boolean>(false);
   const [refineError, setRefineError] = useState<string | null>(null);
+
+  // Active protocol saved on this device, and whether the daily dashboard is showing.
+  const [activeProtocol, setActiveProtocol] = useState<ActiveProtocol | null>(null);
+  const [showDashboard, setShowDashboard] = useState<boolean>(false);
+  const [editingActive, setEditingActive] = useState<boolean>(false);
+
+  // Device storage only exists in the browser, so it is read once after the first render.
+  useEffect(() => {
+    const saved = loadProtocol();
+    if (saved) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setActiveProtocol(saved);
+      setShowDashboard(true);
+    }
+  }, []);
+
+  const updateProtocol = (p: ActiveProtocol) => {
+    setActiveProtocol(p);
+    saveProtocol(p);
+  };
+
+  const confirmAndActivate = () => {
+    if (!workout || !selectedSportKey) return;
+    const keepHistory = editingActive && activeProtocol && activeProtocol.sport === selectedSportKey;
+    if (!keepHistory && activeProtocol && !window.confirm('This will replace your current active protocol and its history. Continue?')) {
+      return;
+    }
+    const base: ActiveProtocol = keepHistory
+      ? { ...activeProtocol!, plan: workout, changeLog }
+      : {
+          v: 1,
+          sport: selectedSportKey,
+          survey: lockedSurvey,
+          plan: workout,
+          weightUnit: formData.weightUnit,
+          startedAt: todayISO(),
+          changeLog,
+          sessions: [],
+          drafts: {},
+          originalDays: {},
+          adaptations: {},
+        };
+    updateProtocol(base);
+    setIsConfirmedPlan(true);
+    setEditingActive(true); // the plan on screen is now the active one
+    setShowDashboard(true);
+    window.scrollTo({ top: 0 });
+  };
+
+  const openFullProtocol = () => {
+    if (!activeProtocol) return;
+    setSelectedSportKey(activeProtocol.sport);
+    setWorkout(activeProtocol.plan);
+    setLockedSurvey(activeProtocol.survey);
+    setChangeLog(activeProtocol.changeLog ?? []);
+    setPlanHistory([]);
+    setRefineInput('');
+    setRefineError(null);
+    setIsConfirmedPlan(true);
+    setEditingActive(true);
+    setShowDashboard(false);
+    window.scrollTo({ top: 0 });
+  };
+
+  const startNewProtocol = () => {
+    clearProtocol();
+    setActiveProtocol(null);
+    setShowDashboard(false);
+    setEditingActive(false);
+    setSelectedSportKey(null);
+    setWorkout(null);
+    setStep(1);
+    setIsConfirmedPlan(false);
+    setEditingActive(false);
+    resetRefinement();
+  };
 
   const resetRefinement = () => {
     setPlanHistory([]);
@@ -544,7 +622,7 @@ ${surveySummary}
               </nav>
             </div>
             <div className="flex items-center gap-3">
-              {workout && (
+              {workout && !(activeProtocol && showDashboard) && (
                 <button 
                   onClick={() => setFocusMode(!focusMode)}
                   className={`px-3 py-1.5 rounded-full border text-xs font-medium transition ${
@@ -554,12 +632,22 @@ ${surveySummary}
                   {focusMode ? 'Exit Focus Mode' : 'Focus Mode'}
                 </button>
               )}
+              {activeProtocol && !showDashboard && (
+                <button
+                  onClick={() => { setShowDashboard(true); setFocusMode(false); window.scrollTo({ top: 0 }); }}
+                  className="px-4 py-2 rounded-full bg-white text-black hover:bg-zinc-200 transition font-medium text-xs tracking-wide"
+                >
+                  Today&apos;s Training
+                </button>
+              )}
+              {!(activeProtocol && showDashboard) && (
               <button 
-                onClick={() => { setSelectedSportKey(null); setWorkout(null); setStep(1); setFocusMode(false); setIsConfirmedPlan(false); }}
+                onClick={() => { setSelectedSportKey(null); setWorkout(null); setStep(1); setFocusMode(false); setIsConfirmedPlan(false); setEditingActive(false); resetRefinement(); }}
                 className="px-4 py-2 rounded-full border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 transition font-medium text-xs tracking-wide"
               >
                 {selectedSportKey ? 'Back to Sport Selection' : 'Reset Protocol'}
               </button>
+              )}
             </div>
           </div>
         </header>
@@ -567,7 +655,14 @@ ${surveySummary}
         {/* MAIN CONTAINER */}
         <main className="pt-16">
           
-          {!selectedSportKey ? (
+          {activeProtocol && showDashboard ? (
+            <Dashboard
+              protocol={activeProtocol}
+              onChange={updateProtocol}
+              onViewPlan={openFullProtocol}
+              onNewProtocol={startNewProtocol}
+            />
+          ) : !selectedSportKey ? (
             <div className="relative w-full h-[calc(100vh-4rem)] bg-zinc-950 flex flex-col md:flex-row overflow-hidden">
               
               <svg className="hidden md:block absolute inset-0 w-full h-full pointer-events-none z-30" preserveAspectRatio="none">
@@ -1282,12 +1377,7 @@ ${surveySummary}
 
                       <div className="flex flex-col sm:flex-row items-center gap-4">
                         <button
-                          onClick={() => {
-                            setIsConfirmedPlan(true);
-                            if (typeof window !== 'undefined') {
-                              localStorage.setItem('elv8_confirmed_plan', workout || '');
-                            }
-                          }}
+                          onClick={confirmAndActivate}
                           className="w-full sm:w-auto px-6 py-3 rounded-full bg-white text-black hover:bg-zinc-200 transition font-semibold text-xs tracking-wider uppercase shadow-[0_0_20px_rgba(255,255,255,0.2)]"
                         >
                           Confirm Final & Activate Plan ↗
@@ -1300,12 +1390,22 @@ ${surveySummary}
                         <p className="font-semibold text-white">Status: Active Protocol Locked & Saved</p>
                         <p className="text-zinc-400">Your routine is officially active in system memory.</p>
                       </div>
+                      <div className="flex gap-2">
+                      {activeProtocol && (
+                        <button
+                          onClick={() => { setShowDashboard(true); window.scrollTo({ top: 0 }); }}
+                          className="px-3 py-1.5 rounded-lg bg-white text-black hover:bg-zinc-200 text-[11px] font-semibold transition"
+                        >
+                          Today&apos;s Training ↗
+                        </button>
+                      )}
                       <button
                         onClick={() => setIsConfirmedPlan(false)}
                         className="px-3 py-1.5 rounded-lg border border-zinc-700 hover:bg-zinc-800 text-zinc-300 text-[11px] transition"
                       >
                         Unlock / Edit Plan
                       </button>
+                      </div>
                     </div>
                   )}
                 </div>
