@@ -3,11 +3,13 @@
 import { useMemo, useState } from 'react';
 import {
   ActiveProtocol,
+  WeightUnit,
   EMPTY_CELL,
   PlanDay,
   SessionLog,
   WEEKDAYS,
   cleanCell,
+  convertLoad,
   currentWeek,
   parsePlan,
   parseTable,
@@ -17,6 +19,7 @@ import {
   todayISO,
   weekdayIndex,
 } from '@/lib/protocol';
+import { cleanText } from '@/lib/text';
 
 type Props = {
   protocol: ActiveProtocol;
@@ -70,10 +73,10 @@ export default function Dashboard({ protocol, onChange, onViewPlan, onNewProtoco
       <div className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 pb-6 border-b border-zinc-800">
         <div>
           <span className="text-xs uppercase tracking-widest text-zinc-500 block mb-1">
-            {todayLabel} · Week {week}
-            {protocol.targetWeeks ? ` of ${protocol.targetWeeks}` : ''}
+            <span className="mr-4">{todayLabel}</span>
+            <span>Week {week}{protocol.targetWeeks ? ` of ${protocol.targetWeeks}` : ''}</span>
           </span>
-          <h2 className="text-2xl font-light text-white">{protocol.sport} — Active Protocol</h2>
+          <h2 className="text-2xl font-light text-white">{protocol.sport} Protocol</h2>
         </div>
         <div className="flex gap-2">
           <button onClick={onViewPlan} className="px-4 py-2 rounded-full border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs transition">
@@ -179,7 +182,7 @@ function WeekStrip({
               {c.label}
             </span>
             <span className="block text-[11px] mt-1 font-medium">
-              {c.day ? (done ? '✓' : `D${c.day.number}`) : 'Rest'}
+              {c.day ? (done ? 'Done' : `D${c.day.number}`) : 'Rest'}
             </span>
             {c.day && (missed || adaptations[c.day.number]) && (
               <span className={`block text-[9px] mt-0.5 ${selected ? 'text-zinc-600' : missed ? 'text-amber-400' : 'text-sky-400'}`}>
@@ -226,7 +229,7 @@ function RestDay({
           className="px-5 py-2.5 rounded-full border border-zinc-700 text-zinc-200 hover:bg-zinc-800 text-xs tracking-wider uppercase transition"
         >
           Preview next session: Day {next.number}
-          {next.weekday ? ` · ${next.weekday}` : ''} ↗
+          {next.weekday ? `, ${next.weekday}` : ''}
         </button>
       )}
     </div>
@@ -257,24 +260,38 @@ function DayWorkout({
 }) {
   const key = sessionKey(week, day.number);
   const session = protocol.sessions.find((s) => s.key === key);
-  const loads = session?.loads ?? protocol.drafts[key] ?? {};
+  const unit = protocol.weightUnit;
+  const loadsFor = (name: string): string[] => {
+    if (session) return (session.loads[name] ?? []).map((v) => convertLoad(v, session.unit ?? unit, unit));
+    return protocol.drafts[key]?.[name] ?? [];
+  };
   const table = parseTable(day.block);
   const [openTip, setOpenTip] = useState<number | null>(null);
-  const unit = protocol.weightUnit;
+
+  // Switching unit converts unsaved entries; saved sessions keep their own unit and are converted for display.
+  const switchUnit = (to: WeightUnit) => {
+    if (to === unit) return;
+    const drafts: ActiveProtocol['drafts'] = {};
+    for (const [k, byName] of Object.entries(protocol.drafts)) {
+      drafts[k] = Object.fromEntries(Object.entries(byName).map(([n, vals]) => [n, vals.map((v) => convertLoad(v, unit, to))]));
+    }
+    const sessions = protocol.sessions.map((s) => (s.unit ? s : { ...s, unit }));
+    onChange({ ...protocol, weightUnit: to, drafts, sessions });
+  };
 
   const notes = day.block
     .split('\n')
     .slice(1)
     .map((l) => l.trim())
     .filter((l) => l && !l.startsWith('|'))
-    .map((l) => l.replace(/\*\*/g, '').replace(/^#+\s*/, ''));
+    .map((l) => cleanText(l.replace(/^#+\s*/, '')));
 
   const lastLoads = (name: string): string[] | null => {
     const prev = [...protocol.sessions]
       .filter((s) => s.key !== key)
       .reverse()
       .find((s) => s.loads[name]?.some((v) => v));
-    return prev ? prev.loads[name] : null;
+    return prev ? prev.loads[name].map((v) => convertLoad(v, prev.unit ?? unit, unit)) : null;
   };
 
   const setLoad = (name: string, setIdx: number, value: string, sets: number) => {
@@ -308,14 +325,14 @@ function DayWorkout({
       <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-3">
         <div>
           <span className="text-xs uppercase tracking-widest text-zinc-500">
-            {isToday ? "Today's Training" : 'Session'} · Day {day.number}
-            {day.weekday ? ` · ${day.weekday}` : ''}
+            <span className="mr-3">{isToday ? "Today's Training" : 'Session'}</span>
+            <span>Day {day.number}{day.weekday ? `, ${day.weekday}` : ''}</span>
           </span>
-          <h3 className="text-xl md:text-2xl font-light text-white mt-1">{day.focus}</h3>
+          <h3 className="text-xl md:text-2xl font-light text-white mt-1">{cleanText(day.focus)}</h3>
         </div>
         {session && (
           <span className="self-start px-3 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/30 text-emerald-300 text-[11px] uppercase tracking-wider">
-            Completed ✓
+            Completed
           </span>
         )}
       </div>
@@ -344,6 +361,26 @@ function DayWorkout({
 
       {table ? (
         <div className="space-y-3">
+          {table.rows.some((r) => setCount(cleanCell(r[col.sets])) > 0) && (
+            <div className="flex items-center justify-end gap-3">
+              <span className="text-[10px] uppercase tracking-wider text-zinc-500">Weight unit</span>
+              <div className="flex rounded-full border border-zinc-800 bg-zinc-900/60 p-0.5">
+                {(['kg', 'lb'] as WeightUnit[]).map((u) => (
+                  <button
+                    key={u}
+                    type="button"
+                    onClick={() => switchUnit(u)}
+                    aria-pressed={unit === u}
+                    className={`px-3 py-1 rounded-full text-[10px] font-semibold uppercase tracking-wider transition ${
+                      unit === u ? 'bg-zinc-100 text-black' : 'text-zinc-400 hover:text-zinc-200'
+                    }`}
+                  >
+                    {u}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           {table.rows.map((row, rIndex) => {
             const name = cleanCell(row[0]);
             const prescription = cleanCell(row[col.sets]);
@@ -355,13 +392,13 @@ function DayWorkout({
             const tip = tipRaw && !EMPTY_CELL.test(tipRaw) ? tipRaw.split(/\s*;\s*/).filter(Boolean) : null;
             const sets = setCount(prescription);
             const last = sets ? lastLoads(name) : null;
-            const values = loads[name] ?? [];
+            const values = loadsFor(name);
 
             return (
               <div key={rIndex} className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4 space-y-3">
                 <div className="flex items-start justify-between gap-3">
                   <div className="flex items-start gap-2 min-w-0">
-                    <p className="text-sm text-white font-medium">{name}</p>
+                    <p className="text-sm text-white font-medium">{cleanText(name)}</p>
                     {tip && (
                       <button
                         type="button"
@@ -376,22 +413,22 @@ function DayWorkout({
                   </div>
                   {link && isUsefulVideoLink(link[2]) && (
                     <a href={link[2]} target="_blank" rel="noreferrer" className="shrink-0 text-xs text-white underline underline-offset-4 hover:text-zinc-400">
-                      Video ↗
+                      Video
                     </a>
                   )}
                 </div>
 
                 <div className="flex flex-wrap gap-2 text-[11px]">
-                  {!EMPTY_CELL.test(prescription) && <span className="px-2 py-1 rounded-md bg-zinc-800/70 text-zinc-200">{prescription}</span>}
-                  {!EMPTY_CELL.test(rest) && <span className="px-2 py-1 rounded-md bg-zinc-800/70 text-zinc-300">{rest}</span>}
+                  {!EMPTY_CELL.test(prescription) && <span className="px-2 py-1 rounded-md bg-zinc-800/70 text-zinc-200">{cleanText(prescription)}</span>}
+                  {!EMPTY_CELL.test(rest) && <span className="px-2 py-1 rounded-md bg-zinc-800/70 text-zinc-300">{cleanText(rest)}</span>}
                 </div>
-                {!EMPTY_CELL.test(cue) && <p className="text-xs text-zinc-400 font-light">{cue}</p>}
+                {!EMPTY_CELL.test(cue) && <p className="text-xs text-zinc-400 font-light">{cleanText(cue)}</p>}
 
                 {tip && openTip === rIndex && (
                   <div className="rounded-lg bg-zinc-900 border border-zinc-800 p-3">
                     <p className="text-[10px] uppercase tracking-wider text-zinc-500 font-semibold mb-2">How to perform</p>
                     <ol className="list-decimal list-inside space-y-1 text-xs text-zinc-300 leading-relaxed">
-                      {tip.map((s, i) => <li key={i}>{s}</li>)}
+                      {tip.map((s, i) => <li key={i}>{cleanText(s)}</li>)}
                     </ol>
                   </div>
                 )}
@@ -417,7 +454,7 @@ function DayWorkout({
                             step="0.5"
                             disabled={!!session}
                             value={values[sIdx] ?? ''}
-                            placeholder={last?.[sIdx] || '—'}
+                            placeholder={last?.[sIdx] || ''}
                             onChange={(e) => setLoad(name, sIdx, e.target.value, sets)}
                             className="w-full bg-zinc-800/50 border border-zinc-800 rounded-lg px-2 py-2 text-xs text-zinc-100 placeholder-zinc-600 focus:outline-none focus:border-zinc-500 disabled:opacity-70 [appearance:textfield] [&::-webkit-inner-spin-button]:appearance-none"
                           />
@@ -437,7 +474,7 @@ function DayWorkout({
       {session ? (
         <div className="rounded-xl border border-zinc-800 bg-zinc-950/60 p-4 space-y-3">
           <p className="text-xs text-zinc-400">
-            Energy <span className="text-white font-semibold">{session.energy}/10</span> · Difficulty{' '}
+            <span className="mr-4">Energy <span className="text-white font-semibold">{session.energy}/10</span></span>Difficulty{' '}
             <span className="text-white font-semibold">{session.difficulty}/10</span>
           </p>
           {session.notes && <p className="text-xs text-zinc-400 italic">&ldquo;{session.notes}&rdquo;</p>}
@@ -454,7 +491,7 @@ function DayWorkout({
           onClick={onComplete}
           className="w-full px-6 py-4 rounded-full bg-white text-black hover:bg-zinc-200 transition font-semibold text-xs tracking-wider uppercase shadow-[0_0_20px_rgba(255,255,255,0.15)]"
         >
-          Mark this training as completed ✓
+          Mark this training as completed
         </button>
       )}
     </div>
@@ -586,6 +623,7 @@ function FeedbackModal({
       difficulty,
       notes: notes.trim(),
       loads: protocol.drafts[key] ?? {},
+      unit: protocol.weightUnit,
     };
     const drafts = { ...protocol.drafts };
     delete drafts[key];
@@ -632,13 +670,13 @@ function FeedbackModal({
         {phase === 'loading' && (
           <div className="py-10 text-center space-y-3">
             <div className="mx-auto h-8 w-8 rounded-full border-2 border-zinc-700 border-t-white animate-spin" />
-            <p className="text-sm text-zinc-300">Session saved. Your coach is preparing your recovery plan…</p>
+            <p className="text-sm text-zinc-300">Session saved. Your coach is preparing your recovery plan.</p>
           </div>
         )}
 
         {phase === 'error' && (
           <div className="space-y-4">
-            <p className="text-sm text-white">Session saved ✓</p>
+            <p className="text-sm text-white">Session saved</p>
             <p className="text-xs text-zinc-400">We couldn&apos;t get your recovery plan right now.</p>
             <div className="flex gap-3">
               <button onClick={onClose} className="flex-1 px-4 py-3 rounded-full border border-zinc-700 text-zinc-300 text-xs uppercase tracking-wider">Close</button>
@@ -658,7 +696,7 @@ function FeedbackModal({
         {phase === 'done' && result && (
           <div className="space-y-5">
             <div>
-              <span className="text-xs uppercase tracking-widest text-emerald-400">Session completed ✓</span>
+              <span className="text-xs uppercase tracking-widest text-emerald-400">Session completed</span>
               <h3 className="text-lg font-light text-white mt-1">Your recovery plan</h3>
             </div>
             <RecoveryText text={result.recovery} />
@@ -690,8 +728,8 @@ function RecoveryText({ text }: { text: string }) {
     <ul className="space-y-2">
       {lines.map((l, i) => (
         <li key={i} className="text-sm text-zinc-300 font-light leading-relaxed flex gap-2">
-          {/^[-*•]\s/.test(l) && <span className="text-zinc-600">—</span>}
-          <span>{l.replace(/^[-*•]\s*/, '').replace(/\*\*/g, '')}</span>
+          {/^[-*•]\s/.test(l) && <span className="mt-2 h-1 w-1 shrink-0 rounded-full bg-zinc-500" />}
+          <span>{cleanText(l.replace(/^[-*•]\s*/, ''))}</span>
         </li>
       ))}
     </ul>
@@ -707,7 +745,9 @@ function ProgressPanel({ protocol }: { protocol: ActiveProtocol }) {
   const byExercise: Record<string, { date: string; top: number }[]> = {};
   for (const s of sessions) {
     for (const [name, values] of Object.entries(s.loads)) {
-      const nums = values.map(Number).filter((n) => !isNaN(n) && n > 0);
+      const nums = values
+        .map((v) => Number(convertLoad(v, s.unit ?? protocol.weightUnit, protocol.weightUnit)))
+        .filter((n) => !isNaN(n) && n > 0);
       if (!nums.length) continue;
       (byExercise[name] ??= []).push({ date: s.date, top: Math.max(...nums) });
     }
@@ -733,7 +773,7 @@ function ProgressPanel({ protocol }: { protocol: ActiveProtocol }) {
               <div key={name} className="flex items-center justify-between gap-3 text-xs border-b border-zinc-800/60 pb-2">
                 <span className="text-zinc-300 truncate">{name}</span>
                 <span className="text-zinc-400 shrink-0">
-                  {last5.map((e) => e.top).join(' → ')} {protocol.weightUnit}
+                  {last5.map((e) => e.top).join(', ')} {protocol.weightUnit}
                   {delta !== 0 && (
                     <span className={`ml-2 ${delta > 0 ? 'text-emerald-400' : 'text-amber-400'}`}>
                       {delta > 0 ? '+' : ''}

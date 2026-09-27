@@ -4,8 +4,8 @@ import { Fragment, useEffect, useState } from 'react';
 import PlanPreview from '@/app/components/PlanPreview';
 import Dashboard from '@/app/components/Dashboard';
 import { ActiveProtocol, clearProtocol, loadProtocol, parsePlan, replaceDay, saveProtocol, todayISO, todaySummary } from '@/lib/protocol';
+import { cleanText } from '@/lib/text';
 import { TIMEFRAME_OPTIONS, effectiveTimeframe, isRealistic, minimumWeeks } from '@/lib/timeframe';
-import { STREAM_ERROR_MARKER } from '@/lib/constants';
 
 interface SportData {
   tag: string;
@@ -161,6 +161,7 @@ export default function Home() {
   const [refining, setRefining] = useState<boolean>(false);
   const [refineError, setRefineError] = useState<string | null>(null);
   const [streaming, setStreaming] = useState<boolean>(false);
+  const [daysReady, setDaysReady] = useState<{ done: number; total: number }>({ done: 0, total: 0 });
   const [targetWeeks, setTargetWeeks] = useState<number>(0);
 
   // Active protocol saved on this device, and whether the daily dashboard is showing.
@@ -410,74 +411,79 @@ export default function Home() {
     setLockedSurvey(surveySummary);
     setTargetWeeks(timeframe.weeks);
 
-    const fullPrompt = `
-    Act as a world-class elite athletic coach (${activeSport.coachName}).
-    Design a precise, realistic, professional training program for an athlete in ${selectedSportKey}, based strictly on this survey: the detailed plan for week 1, plus a roadmap to reach the goal within the timeframe.
-
-    STRICT ATHLETE SURVEY PARAMETERS:
-${surveySummary}
-
-    You MUST generate exactly ${formData.daysPerWeek} training days. No more, no less. Every other day of the week is a rest day.
-
-    CRITICAL FORMATTING RULES (UNBREAKABLE):
-    1. Start with a "Coach's Mindset & Tactical Briefing" paragraph that explains, in 3-5 sentences, how this week is built around the survey answers and what is realistically achievable in the timeframe.
-    2. Then a line "Weekly Layout:" listing Monday to Sunday, each with its session focus or "Rest".
-    3. For EVERY training day, use this EXACT markdown template, with the weekday from the Weekly Layout:
-
-    Day [Number] - [Weekday]: [Focus Area]
-    | Exercise / Workout Block | Sets x Reps / Distance / Duration | Rest / Pace / Power Zone | Key Coaching Cue | Video Tutorial | How To Perform |
-    |---|---|---|---|---|---|
-    | Barbell Back Squat | 4 x 6 @ RIR 2 | 2-3 min | Brace before descending | [Watch Guide](https://www.youtube.com/results?search_query=barbell+back+squat+proper+form) | Set the bar on your upper back and grip it just outside the shoulders ; Feet shoulder-width, toes slightly out ; Brace your core and sit down between your hips, knees tracking over toes ; Drive up through the whole foot, keeping the chest up |
-    | Easy aerobic run | 6 km (3.7 mi) | Z2, RPE 4 | Conversational pace | — | — |
-
-    4. VIDEO TUTORIAL column: add a link ONLY for a single, universally named exercise or drill (e.g. Barbell Bench Press, Romanian Deadlift, A-Skip, Catch-Up Drill) where the first YouTube result will clearly show exactly that movement. The search query must be the exact standard exercise name followed by "proper form" (words joined with +). For generic or combined blocks (dynamic mobility, warm-up, easy run, intervals, circuits, cool-down) write "—".
-    5. HOW TO PERFORM column: for every gym/strength exercise, plyometric, technique drill or mobility exercise, give 3-5 short execution steps separated by " ; " (setup, movement, key form points, common mistake to avoid). For plain endurance blocks (easy run, steady ride, swim set) write "—". Never use the "|" character inside a cell.
-    6. After the last day, add a "Progression & Roadmap" section: the phases from week 1 to the end of the timeframe (week ranges, focus and how volume/intensity progress), plus 2-3 sentences on recovery.
-    7. You must use the pipe symbols exactly as shown above.
-    8. Absolutely NO emojis.
-    `;
-
-    let text = '';
-    try {
-      const response = await fetch(`${window.location.origin}/api/generate`, {
+    type Outline = {
+      briefing: string;
+      layout: string;
+      roadmap: string;
+      sessions: { number: number; heading: string; spec: string }[];
+    };
+    const trainingDays = parseInt(formData.daysPerWeek, 10) || 4;
+    const base = { survey: surveySummary, sport: selectedSportKey, coach: activeSport.coachName };
+    const post = (payload: object) =>
+      fetch(`${window.location.origin}/api/generate`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ prompt: fullPrompt }),
+        body: JSON.stringify(payload),
       });
 
-      if (!response.ok || !response.body) {
-        const data = await response.json().catch(() => ({}));
-        alert(data.error || 'Server Error');
+    const assemble = (o: Outline, blocks: Record<number, string>) =>
+      [
+        "Coach's Mindset & Tactical Briefing",
+        o.briefing,
+        '',
+        o.layout,
+        '',
+        ...o.sessions.map((sess) => blocks[sess.number] ?? `${sess.heading}\nPreparing this session`),
+        '',
+        'Progression & Roadmap',
+        o.roadmap,
+      ].join('\n');
+
+    try {
+      // Step 1: the coach designs the week (short answer).
+      const outlineRes = await post({ ...base, mode: 'outline', trainingDays });
+      const outline = (await outlineRes.json().catch(() => ({}))) as Outline & { error?: string };
+      if (!outlineRes.ok || !outline.sessions?.length) {
+        alert(outline.error || 'Server Error');
         return;
       }
 
-      // Show the plan while it is being written.
+      // Step 2: every session is written at the same time and shown as soon as it is ready.
+      const outlineText = [
+        outline.briefing,
+        outline.layout,
+        ...outline.sessions.map((sess) => `${sess.heading} :: ${sess.spec}`),
+      ].join('\n');
+      const blocks: Record<number, string> = {};
+      setDaysReady({ done: 0, total: outline.sessions.length });
       setStreaming(true);
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let lastPaint = 0;
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        text += decoder.decode(value, { stream: true });
-        const now = Date.now();
-        if (now - lastPaint > 120) {
-          lastPaint = now;
-          setWorkout(text.split(STREAM_ERROR_MARKER)[0]);
-        }
-      }
-      text += decoder.decode();
+      setWorkout(assemble(outline, blocks));
 
-      const [plan, error] = text.split(STREAM_ERROR_MARKER);
-      if (error !== undefined && plan.trim().length < 200) {
+      const fetchDay = async (day: number, attempt = 0): Promise<boolean> => {
+        try {
+          const res = await post({ ...base, mode: 'day', outline: outlineText, day });
+          const data = await res.json().catch(() => ({}));
+          if (res.ok && data.block) {
+            blocks[day] = data.block;
+            setWorkout(assemble(outline, blocks));
+            setDaysReady((prev) => ({ ...prev, done: Object.keys(blocks).length }));
+            return true;
+          }
+        } catch (error) {
+          console.error(error);
+        }
+        return attempt < 1 ? fetchDay(day, attempt + 1) : false;
+      };
+
+      const results = await Promise.all(outline.sessions.map((sess) => fetchDay(sess.number)));
+      if (results.includes(false)) {
         setWorkout(null);
-        alert('The coach could not finish your protocol. Please try again.');
-        return;
+        alert('Some sessions could not be written. Please try again.');
       }
-      setWorkout(plan.trim() || null);
     } catch (error) {
       console.error(error);
-      if (!text) alert('Connection error. Please try again.');
+      setWorkout(null);
+      alert('Connection error. Please try again.');
     } finally {
       setStreaming(false);
       setLoading(false);
@@ -598,7 +604,7 @@ ${surveySummary}
 
       const isDayHeading = /^(\*\*)?\s*Day\s+\d+/i.test(trimmed) && trimmed.length < 90;
       if (isDayHeading || trimmed.startsWith('#') || (trimmed.startsWith('**') && trimmed.endsWith('**') && trimmed.length < 50)) {
-        const titleText = trimmed.replace(/^#+\s*/, '').replace(/\*\*/g, '');
+        const titleText = cleanText(trimmed.replace(/^#+\s*/, ''));
         elements.push(
           <h3 key={index} className="text-lg md:text-xl font-medium tracking-tight text-white mt-8 mb-3 pb-2 border-b border-zinc-800">
             {titleText}
@@ -609,7 +615,7 @@ ${surveySummary}
 
       elements.push(
         <p key={index} className="text-zinc-400 text-sm md:text-base leading-relaxed mb-2 font-light">
-          {trimmed.replace(/\*\*/g, '')}
+          {cleanText(trimmed)}
         </p>
       );
     });
@@ -660,6 +666,9 @@ ${surveySummary}
             <h1 className="text-3xl md:text-[12rem] font-light tracking-[0.22em] text-white uppercase leading-none font-mono drop-shadow-[0_0_50px_rgba(255,255,255,0.4)]">
               ELV8
             </h1>
+            <p className="-mt-1 md:-mt-3 pl-[0.8em] md:pl-[1.1em] text-xs md:text-xl font-light uppercase tracking-[0.8em] md:tracking-[1.1em] text-zinc-300">
+              Elevate
+            </p>
 
             <p className="px-6 md:px-0 text-zinc-200 text-sm md:text-lg font-light tracking-wide max-w-xl mx-auto leading-relaxed drop-shadow-md">
               Excellence is not an act, it is a relentless mindset. Push past your absolute limits and engineer elite physical performance.
@@ -667,7 +676,7 @@ ${surveySummary}
 
             <div className="pt-6">
               <span className="inline-block w-full sm:w-auto px-6 py-3 rounded-full border border-zinc-500 bg-zinc-900/90 backdrop-blur-md text-[11px] uppercase tracking-[0.35em] text-white font-semibold hover:border-white transition shadow-[0_0_25px_rgba(255,255,255,0.2)]">
-                Touch the screen to continue ↗
+                Touch the screen to continue
               </span>
             </div>
           </div>
@@ -681,7 +690,10 @@ ${surveySummary}
         <header className="fixed top-0 left-0 right-0 z-40 bg-zinc-950/70 backdrop-blur-md border-b border-zinc-800/50">
           <div className="max-w-6xl mx-auto px-6 h-16 flex items-center justify-between text-xs md:text-sm">
             <div className="flex items-center gap-6">
-              <span className="font-light tracking-[0.15em] text-white uppercase text-lg font-mono">ELV8</span>
+              <span className="flex flex-col leading-none">
+                <span className="font-light tracking-[0.15em] text-white uppercase text-lg font-mono">ELV8</span>
+                <span className="mt-1 text-[8px] font-medium uppercase tracking-[0.62em] text-zinc-500">Elevate</span>
+              </span>
               <span className="hidden md:inline text-zinc-600">|</span>
               <nav className="hidden md:flex gap-6 text-zinc-400 font-medium">
                 <span className="text-zinc-200">Elite Protocol</span>
@@ -747,16 +759,16 @@ ${surveySummary}
                     <div className="min-w-0">
                       <p className="text-[10px] uppercase tracking-[0.25em] text-zinc-500 font-semibold">My Active Plan</p>
                       <p className="text-sm text-white truncate">
-                        {activeProtocol.sport} · Week {t.week}
-                        {activeProtocol.targetWeeks ? ` of ${activeProtocol.targetWeeks}` : ''}
-                        <span className="text-zinc-400"> · Today: {t.label}</span>
+                        <span className="mr-4">{activeProtocol.sport}</span>
+                        <span className="mr-4 text-zinc-300">Week {t.week}{activeProtocol.targetWeeks ? ` of ${activeProtocol.targetWeeks}` : ''}</span>
+                        <span className="text-zinc-400">Today: {t.label}</span>
                       </p>
                     </div>
                     <button
                       onClick={() => { setShowDashboard(true); window.scrollTo({ top: 0 }); }}
                       className="shrink-0 px-5 py-2.5 rounded-full bg-white text-black hover:bg-zinc-200 transition font-semibold text-xs tracking-wider uppercase"
                     >
-                      Open My Plan ↗
+                      Open My Plan
                     </button>
                   </div>
                 </div>
@@ -801,7 +813,7 @@ ${surveySummary}
                         className="text-left py-2.5 px-4 rounded-xl border border-zinc-700/80 bg-zinc-900/90 hover:bg-white hover:text-black hover:border-white transition-all duration-300 flex items-center justify-between group/btn shadow-xl backdrop-blur-sm"
                       >
                         <span className="text-xs font-bold uppercase tracking-wider">{sport}</span>
-                        <span className="text-[10px] font-mono opacity-50 group-hover/btn:opacity-100">↗</span>
+                        
                       </button>
                     ))}
                   </div>
@@ -842,7 +854,7 @@ ${surveySummary}
                         className="text-left py-2.5 px-4 rounded-xl border border-zinc-700/80 bg-zinc-900/90 hover:bg-white hover:text-black hover:border-white transition-all duration-300 flex items-center justify-between group/btn shadow-xl backdrop-blur-sm"
                       >
                         <span className="text-xs font-bold uppercase tracking-wider">{sport}</span>
-                        <span className="text-[10px] font-mono opacity-50 group-hover/btn:opacity-100">↗</span>
+                        
                       </button>
                     ))}
                   </div>
@@ -1007,7 +1019,7 @@ ${surveySummary}
                             onClick={() => setStep(2)}
                             className="px-6 py-3 rounded-full bg-white text-black hover:bg-zinc-200 transition font-medium text-xs tracking-wider uppercase flex items-center gap-2"
                           >
-                            Next Step <span>↗</span>
+                            Next Step
                           </button>
                         </div>
                       </div>
@@ -1223,7 +1235,7 @@ ${surveySummary}
                             onClick={() => setStep(3)}
                             className="px-6 py-3 rounded-full bg-white text-black hover:bg-zinc-200 transition font-medium text-xs tracking-wider uppercase flex items-center gap-2"
                           >
-                            Next Step <span>↗</span>
+                            Next Step
                           </button>
                         </div>
                       </div>
@@ -1277,7 +1289,7 @@ ${surveySummary}
                                   }`}
                                 >
                                   <span>{eq}</span>
-                                  <span className="text-[10px] font-mono">{isSelected ? '[SELECTED]' : '[+]'}</span>
+                                  <span className={`h-3 w-3 rounded-sm border ${isSelected ? 'bg-black border-black' : 'border-zinc-500'}`} />
                                 </button>
                               );
                             })}
@@ -1382,7 +1394,7 @@ ${surveySummary}
                             disabled={loading}
                             className="px-8 py-3.5 rounded-full bg-white text-black hover:bg-zinc-200 transition font-medium text-xs tracking-wider uppercase disabled:opacity-50"
                           >
-                            {loading ? 'Engineering Protocol...' : 'Generate Protocol ↗'}
+                            {loading ? 'Engineering Protocol...' : 'Generate Protocol'}
                           </button>
                         </div>
                       </div>
@@ -1402,7 +1414,7 @@ ${surveySummary}
                   <span className="text-xs uppercase tracking-widest text-zinc-500 block mb-1">
                     {isConfirmedPlan ? 'Active Elite Protocol' : 'Irrevocable Standard'}
                   </span>
-                  <h2 className="text-xl font-light text-white">{selectedSportKey} — Elite Protocol</h2>
+                  <h2 className="text-xl font-light text-white">{selectedSportKey} Elite Protocol</h2>
                 </div>
                 <div className="flex items-center gap-3">
                   {!streaming && <PlanPreview initialPlan={workout} />}
@@ -1423,7 +1435,7 @@ ${surveySummary}
                 {streaming && (
                   <div className="flex items-center gap-3 pt-4 text-xs text-zinc-400">
                     <span className="h-2 w-2 rounded-full bg-white animate-pulse" />
-                    Your coach is writing your protocol…
+                    Your coach is writing your sessions ({daysReady.done} of {daysReady.total} ready)
                   </div>
                 )}
 
@@ -1496,7 +1508,7 @@ ${surveySummary}
                           disabled={refining || !refineInput.trim()}
                           className="w-full sm:w-auto px-6 py-3 rounded-full bg-white text-black hover:bg-zinc-200 transition font-semibold text-xs tracking-wider uppercase disabled:opacity-40 disabled:cursor-not-allowed"
                         >
-                          {refining ? 'Updating Protocol…' : 'Apply Changes ↗'}
+                          {refining ? 'Updating Protocol' : 'Apply Changes'}
                         </button>
                         {planHistory.length > 0 && (
                           <button
@@ -1530,7 +1542,7 @@ ${surveySummary}
                           onClick={confirmAndActivate}
                           className="w-full sm:w-auto px-6 py-3 rounded-full bg-white text-black hover:bg-zinc-200 transition font-semibold text-xs tracking-wider uppercase shadow-[0_0_20px_rgba(255,255,255,0.2)]"
                         >
-                          Confirm Final & Activate Plan ↗
+                          Confirm Final & Activate Plan
                         </button>
                       </div>
                     </div>
@@ -1546,7 +1558,7 @@ ${surveySummary}
                           onClick={() => { setShowDashboard(true); window.scrollTo({ top: 0 }); }}
                           className="px-3 py-1.5 rounded-lg bg-white text-black hover:bg-zinc-200 text-[11px] font-semibold transition"
                         >
-                          Today&apos;s Training ↗
+                          Today&apos;s Training
                         </button>
                       )}
                       <button
@@ -1621,12 +1633,12 @@ function PlanTable({ headers, rows }: { headers: string[]; rows: string[][] }) {
 
     if (linkMatch) {
       if (!isUsefulVideoLink(linkMatch[2])) {
-        return <td key={cIndex} className="py-3 px-4 text-zinc-600">—</td>;
+        return <td key={cIndex} className="py-3 px-4" />;
       }
       return (
         <td key={cIndex} className="py-3 px-4 text-zinc-300 whitespace-nowrap">
           <a href={linkMatch[2]} target="_blank" rel="noreferrer" className="text-white underline underline-offset-4 font-medium hover:text-zinc-400">
-            {linkMatch[1]} ↗
+            {linkMatch[1]}
           </a>
         </td>
       );
@@ -1637,7 +1649,7 @@ function PlanTable({ headers, rows }: { headers: string[]; rows: string[][] }) {
       return (
         <td key={cIndex} className="py-3 px-4 text-zinc-300">
           <div className="flex items-start gap-2">
-            <span>{clean}</span>
+            <span>{cleanText(clean)}</span>
             <button
               type="button"
               onClick={() => setOpenRow(isOpen ? null : rIndex)}
@@ -1655,7 +1667,7 @@ function PlanTable({ headers, rows }: { headers: string[]; rows: string[][] }) {
 
     return (
       <td key={cIndex} className={`py-3 px-4 ${EMPTY_CELL.test(clean) ? 'text-zinc-600' : 'text-zinc-300'}`}>
-        {EMPTY_CELL.test(clean) ? '—' : clean}
+        {EMPTY_CELL.test(clean) ? '' : cleanText(clean)}
       </td>
     );
   };
@@ -1674,7 +1686,7 @@ function PlanTable({ headers, rows }: { headers: string[]; rows: string[][] }) {
           {rows.map((row, rIndex) => {
             const rawTip = howToIndex >= 0 ? (row[howToIndex] || '').replace(/\*\*/g, '') : '';
             const tip = EMPTY_CELL.test(rawTip) ? null : rawTip;
-            const steps = tip ? tip.split(/\s*;\s*/).filter(Boolean) : [];
+            const steps = tip ? tip.split(/\s*;\s*/).map(cleanText).filter(Boolean) : [];
             return (
               <Fragment key={rIndex}>
                 <tr className="hover:bg-zinc-900/50 transition-colors">

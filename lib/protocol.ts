@@ -11,6 +11,7 @@ export type SessionLog = {
   difficulty: number;
   notes: string;
   loads: Record<string, string[]>; // exercise name -> weight per set
+  unit?: WeightUnit; // unit the loads were entered in
   recovery?: string;
   adaptedNext?: { day: number; reason: string } | null;
 };
@@ -204,4 +205,15 @@ export function todaySummary(p: ActiveProtocol): { week: number; label: string }
     : days.find((d) => !done(d.number));
   if (!today) return { week, label: 'Rest & recovery day' };
   return { week, label: `Day ${today.number}: ${today.focus}${done(today.number) ? ' ✓ done' : ''}` };
+}
+
+const KG_PER_LB = 0.45359237;
+
+/** Convert one logged weight between kg and lb (keeps empty values empty). */
+export function convertLoad(value: string, from: WeightUnit, to: WeightUnit): string {
+  if (!value || from === to) return value;
+  const n = parseFloat(value);
+  if (isNaN(n)) return value;
+  const converted = to === 'lb' ? n / KG_PER_LB : n * KG_PER_LB;
+  return String(Math.round(converted * 2) / 2); // nearest 0.5, like real plates
 }

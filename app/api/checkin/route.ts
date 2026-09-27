@@ -1,12 +1,15 @@
 import { NextResponse } from 'next/server';
 import Anthropic from '@anthropic-ai/sdk';
+import { STYLE_RULES } from '../generate/prompts';
 
 export const maxDuration = 60;
 
 // Cheapest model: check-ins run after every workout, so they must stay low-cost.
 const MODEL = 'claude-haiku-4-5-20251001';
 
-const CHECKIN_SYSTEM_PROMPT = `You are the athlete's personal coach doing a short post-workout check-in. Write in English, no emojis.
+const CHECKIN_SYSTEM_PROMPT = `You are the athlete's personal coach doing a short post-workout check-in. Write in English.
+
+${STYLE_RULES}
 
 You receive: the athlete's locked survey, the session just completed (with logged loads), the athlete's ratings (energy and difficulty, 1-10), their notes, a short recent history, and the NEXT scheduled session.
 
@@ -21,7 +24,7 @@ Adapt the advice to the ratings: very high difficulty or low energy means more e
 
 TASK 2 - ADAPT THE NEXT SESSION (only when truly needed):
 Answer ADAPT: YES only if the notes contain (a) a specific request about upcoming training (e.g. more biceps emphasis, move legs, more stretching), or (b) a real injury, pain or physical discomfort. Ratings alone, tiredness, general comments or "it was hard" are NOT reasons: answer ADAPT: NO.
-When YES: rewrite ONLY the next session. Change the minimum needed (swap or lighten aggravating exercises, add mobility or stretching, add the requested emphasis) and copy everything else exactly. Keep the same heading line, the same table columns and markdown format, and give any new exercise 3-5 execution steps in the How To Perform column (separated by " ; ") and a video link only if it is a universally named exercise. Never violate the locked survey (training days, equipment, injuries). Never use "|" inside a cell.
+When YES: rewrite ONLY the next session. Change the minimum needed (swap or lighten aggravating exercises, add mobility or stretching, add the requested emphasis) and copy everything else exactly. Keep the same heading line, the same table columns and markdown format, and give any new exercise 3-5 execution steps in the How To Perform column (separated by " ; ") and a video link only if it is a universally named exercise, otherwise "-". Never violate the locked survey (training days, equipment, injuries). Never use "|" inside a cell.
 
 RESPONSE FORMAT (mandatory):
 RECOVERY:

@@ -17,7 +17,7 @@ export default function PlanPreview({ initialPlan }: PlanPreviewProps) {
         onClick={() => setIsOpen(true)}
         className="px-4 py-2 rounded-full border border-zinc-700 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs transition"
       >
-        Preview Plan ↗
+        Preview Plan
       </button>
 
       {isOpen && (
@@ -29,7 +29,7 @@ export default function PlanPreview({ initialPlan }: PlanPreviewProps) {
                 onClick={() => setIsOpen(false)}
                 className="text-zinc-400 hover:text-white text-xs uppercase font-mono"
               >
-                Close [X]
+                Close
               </button>
             </div>
             <div className="text-xs text-zinc-300 whitespace-pre-wrap font-mono leading-relaxed">
